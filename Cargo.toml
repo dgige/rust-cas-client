@@ -1,0 +1,7 @@
+[package]
+name = "cas_client"
+version = "0.1.0"
+authors = ["jmarignale"]
+edition = "2018"
+
+[dependencies]
