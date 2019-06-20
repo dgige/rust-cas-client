@@ -6,6 +6,7 @@ extern crate env_logger;
 extern crate serde;
 
 pub mod cas;
+pub mod frameworks;
 
 // #[cfg(test)]
 // mod tests {
