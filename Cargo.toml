@@ -4,4 +4,18 @@ version = "0.1.0"
 authors = ["jmarignale"]
 edition = "2018"
 
+[features]
+default = []
+
 [dependencies]
+url = "= 1.7.2"
+reqwest = "= 0.9.16"
+roxmltree = "= 0.6.0"
+serde = { version = "= 1.0.91", features = ["derive"] }
+serde_json = "= 1.0.39"
+log = "= 0.4.6"
+env_logger = "= 0.6.1"
+
+[lib]
+name = "cas_client"
+path = "src/lib.rs"
