@@ -1,15 +1,7 @@
-#[macro_use]
-extern crate log;
-extern crate env_logger;
-#[allow(unused_imports)]
-#[macro_use]
-extern crate serde;
+extern crate cas_client_core;
 
-pub mod cas;
-pub mod frameworks;
+pub use cas_client_core::CasUser;
+pub use cas_client_core::{CasClient, CasProtocol, NoAuthBehavior};
 
-// #[cfg(test)]
-// mod tests {
-//     #[test]
-//     fn it_works() {}
-// }
+#[cfg(feature = "actix-framework")]
+pub mod actix;

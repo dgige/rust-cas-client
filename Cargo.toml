@@ -1,36 +1,44 @@
 [package]
-name = "cas_client"
-version = "0.1.0"
-authors = ["jmarignale"]
+name = "cas-client"
+version = "0.2.0"
+authors = ["JMarignale <julien.marignale@gmail.com>"]
 edition = "2018"
-
-[features]
-default = []
-actix-framework = [ "actix-web", "actix-service", "actix-session", "futures" ]
-actix-example = [ "dotenv" ]
-
-[dependencies]
-url = "= 1.7.2"
-reqwest = "= 0.9.16"
-roxmltree = "= 0.6.0"
-serde = { version = "= 1.0.91", features = ["derive"] }
-serde_json = "= 1.0.39"
-log = "= 0.4.6"
-env_logger = "= 0.6.1"
-
-# ACTIX
-actix-web = { version = "= 1.0.2", optional = true }
-actix-service = { version = "= 0.4.1", optional = true }
-actix-session = { version = "= 0.1.1", optional = true }
-futures = { version = "= 0.1.27", optional = true }
-
-# EXAMPLES
-dotenv = { version = "= 0.14.1", optional = true }
-
-[[example]]
-name = "actix_example"
-required-features = ["actix-framework"]
 
 [lib]
 name = "cas_client"
 path = "src/lib.rs"
+
+[workspace]
+members = [
+    ".",
+    "cas-client-actix",
+    "cas-client-core",
+    "examples/actix-web-example",
+]
+
+[features]
+default = []
+actix-framework = [ "cas-client-actix" ]
+
+[dependencies]
+# COMMONS
+cas-client-core = { path = "./cas-client-core" }
+
+# ACTIX-FRAMEWORK feature
+cas-client-actix = { path = "./cas-client-actix", optional = true }
+
+[dev-dependencies]
+actix-web = "1.0.3"
+actix-files ="0.1.3"
+actix-service = "0.4.1"
+actix-session = "0.1.1"
+dotenv = "0.14.1"
+env_logger = "0.6.1"
+
+[[example]]
+name = "actix-web-example"
+path = "examples/actix-web-example/src/main.rs"
+required-features = ["actix-framework"]
+
+[package.metadata.docs.rs]
+all-features = true

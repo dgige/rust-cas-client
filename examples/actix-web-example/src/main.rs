@@ -1,10 +1,11 @@
+extern crate cas_client;
 extern crate dotenv;
 
 use actix_session::{CookieSession, UserSession};
 use actix_web::http::StatusCode;
 use actix_web::{get, web, App, HttpRequest, HttpResponse, HttpServer, Responder};
-use cas_client::cas::{CasClient, CasUser, NoAuthBehavior};
-use cas_client::frameworks::actix::ActixCasClient;
+use cas_client::{CasClient, CasUser, NoAuthBehavior};
+use cas_client::actix::ActixCasClient;
 use dotenv::dotenv;
 use std::env;
 

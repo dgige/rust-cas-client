@@ -1,4 +1,14 @@
-use crate::cas::{CasClient, CasUser, NoAuthBehavior};
+extern crate env_logger;
+#[macro_use]
+extern crate log;
+#[allow(unused_imports)]
+#[macro_use]
+extern crate serde;
+
+extern crate cas_client_core;
+
+use cas_client_core::{CasClient, NoAuthBehavior};
+use cas_client_core::CasUser;
 
 use actix_service::{Service, Transform};
 use actix_session::UserSession;

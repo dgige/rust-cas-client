@@ -1,0 +1,15 @@
+[package]
+name = "actix-web-example"
+version = "0.1.0"
+authors = ["jmarignale"]
+edition = "2018"
+
+[dependencies]
+cas-client = { path = "../..", features = ["actix-framework"] }
+
+actix-web = "1.0.3"
+actix-files ="0.1.3"
+actix-service = "0.4.1"
+actix-session = "0.1.1"
+dotenv = "0.14.1"
+env_logger = "0.6.1"
