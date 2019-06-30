@@ -23,6 +23,8 @@ actix-web = { version = "= 1.0.2", optional = true }
 actix-service = { version = "= 0.4.1", optional = true }
 actix-session = { version = "= 0.1.1", optional = true }
 futures = { version = "= 0.1.27", optional = true }
+
+# EXAMPLES
 dotenv = { version = "= 0.14.1", optional = true }
 
 [[example]]

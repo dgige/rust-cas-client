@@ -2,7 +2,7 @@
 
 My first rust module! :)
 
-Allow user connection with [CAS](https://www.apereo.org/projects/cas "Apereo CAS Homepage") server.
+Allow user connection with [CAS server](https://www.apereo.org/projects/cas "Apereo CAS Homepage") .
 
 Tested with:
 - [Actix](https://actix.rs/ "Actix framework homepage")
