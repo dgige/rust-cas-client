@@ -10,9 +10,9 @@ name = "cas_client_core"
 path = "src/lib.rs"
 
 [dependencies]
+curl = "0.4.22"
 env_logger = "0.6.1"
 log = "0.4.6"
-reqwest = "= 0.9.16"
 roxmltree = "0.6.1"
 serde = { version = "1.0.91", features = ["derive"] }
 serde_json = "1.0.39"

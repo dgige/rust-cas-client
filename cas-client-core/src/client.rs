@@ -1,9 +1,10 @@
-extern crate reqwest;
+extern crate curl;
 extern crate roxmltree;
+extern crate url;
 
 use crate::CasUser;
 
-use reqwest::Client;
+use curl::easy::Easy;
 use std::collections::HashMap;
 use url::Url;
 
@@ -205,21 +206,24 @@ impl CasClient {
     pub(self) fn fetch_cas_validation(&self, ticket: &str) -> Option<String> {
         match self.service_validate_url(ticket) {
             Some(url) => {
-                let client = Client::new();
-                let mut req = match client.get(Url::parse(&url).unwrap()).send() {
-                    Ok(r) => r,
+                let mut data = Vec::new();
+                let mut handle = Easy::new();
+                handle.url(&url).unwrap();
+                {
+                    let mut transfer = handle.transfer();
+                    transfer.write_function(|new_data| {
+                        data.extend_from_slice(new_data);
+                        Ok(new_data.len())
+                    }).unwrap();
+                    transfer.perform().unwrap();
+                }
+                match String::from_utf8(data) {
+                    Ok(r) => Some(r),
                     Err(err) => {
                         error!(
                             "Error while requesting ticket validation! Error: {:?}",
                             err
                         );
-                        return None;
-                    }
-                };
-                match req.text() {
-                    Ok(t) => Some(t),
-                    Err(err) => {
-                        error!("Error while decoding response body! Error: {:?}", err);
                         return None;
                     }
                 }
