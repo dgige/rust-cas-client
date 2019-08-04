@@ -12,9 +12,9 @@ path = "src/lib.rs"
 [dependencies]
 cas-client-core = { path = "../cas-client-core" }
 
-actix-web = "1.0.3"
+actix-web = "1.0.5"
 actix-service = "0.4.1"
-actix-session = "0.1.1"
+actix-session = "0.2.0"
 env_logger = "0.6.1"
 futures = "0.1.27"
 log = "0.4.6"
