@@ -153,6 +153,7 @@ where
     }
 
     fn call(&mut self, mut req: ServiceRequest) -> Self::Future {
+        debug!("*** BEGIN CAS CLIENT MIDDLEWARE ***");
         let resp = match self.cas_client.no_auth_behavior() {
             NoAuthBehavior::AuthenticatedOr403 => self.authenticated_or_403(&mut req),
             NoAuthBehavior::AuthenticatedOr404 => self.authenticated_or_404(&mut req),
@@ -160,8 +161,14 @@ where
             NoAuthBehavior::ForceAuthentication => self.force_authentication(&mut req),
         };
         match resp {
-            Some(resp) => Either::B(ok(req.into_response(resp.into_body()))),
-            None => Either::A(self.service.call(req)),
+            Some(resp) => {
+                debug!("*** CAS CLIENT MIDDLEWARE RESPONSE: INTERCEPT REQUEST ***");
+                Either::B(ok(req.into_response(resp.into_body())))
+            },
+            None => {
+                debug!("*** CAS CLIENT MIDDLEWARE RESPONSE: CONTINUE ***");
+                Either::A(self.service.call(req))
+            },
         }
     }
 }
