@@ -20,6 +20,7 @@ use futures::Poll;
 
 use std::collections::HashMap;
 
+#[derive(Clone)]
 pub struct ActixCasClient {
     cas_client: CasClient,
 }

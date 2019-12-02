@@ -35,12 +35,19 @@ fn main() -> std::io::Result<()> {
         .parse()
         .unwrap();
     HttpServer::new(|| {
+        let cas_client = init_cas_client();
         App::new()
             .wrap(CookieSession::signed(&[0; 32]).secure(false))
             .service(guest)
             .service(
                 web::scope("/user")
-                    .wrap(init_cas_client())
+                    .wrap(cas_client.clone())
+                    .route("", web::get().to(user))
+                    .route("/welcome", web::get().to(user)),
+            )
+            .service(
+                web::scope("/user1")
+                    .wrap(cas_client.clone())
                     .route("", web::get().to(user))
                     .route("/welcome", web::get().to(user)),
             )
