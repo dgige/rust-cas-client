@@ -4,8 +4,8 @@ extern crate dotenv;
 use actix_session::{CookieSession, UserSession};
 use actix_web::http::StatusCode;
 use actix_web::{get, web, App, HttpRequest, HttpResponse, HttpServer, Responder};
-use cas_client::{CasClient, CasUser, NoAuthBehavior};
 use cas_client::actix::ActixCasClient;
+use cas_client::{CasClient, CasUser, NoAuthBehavior};
 use dotenv::dotenv;
 use std::env;
 
@@ -38,7 +38,12 @@ fn main() -> std::io::Result<()> {
         App::new()
             .wrap(CookieSession::signed(&[0; 32]).secure(false))
             .service(guest)
-            .service(web::resource("/user").wrap(init_cas_client()).to(user))
+            .service(
+                web::scope("/user")
+                    .wrap(init_cas_client())
+                    .route("", web::get().to(user))
+                    .route("/welcome", web::get().to(user)),
+            )
     })
     .bind(server_bind_address)?
     .workers(workers)
@@ -47,7 +52,8 @@ fn main() -> std::io::Result<()> {
 
 fn init_cas_client() -> ActixCasClient {
     let cas_url = env::var("CAS_URL").unwrap_or("https://cas.example.com".to_string());
-    let service_url = env::var("SERVICE_URL").unwrap_or("http://localhost:3000/user".to_string());
+    let service_url =
+        env::var("SERVICE_URL").unwrap_or("http://localhost:3000/user".to_string());
     let mut cas_client = CasClient::new(&cas_url).unwrap();
     cas_client.set_service_url(&service_url);
     cas_client.set_no_auth_behavior(NoAuthBehavior::Authenticate);

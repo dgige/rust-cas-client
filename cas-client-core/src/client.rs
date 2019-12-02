@@ -211,10 +211,12 @@ impl CasClient {
                 handle.url(&url).unwrap();
                 {
                     let mut transfer = handle.transfer();
-                    transfer.write_function(|new_data| {
-                        data.extend_from_slice(new_data);
-                        Ok(new_data.len())
-                    }).unwrap();
+                    transfer
+                        .write_function(|new_data| {
+                            data.extend_from_slice(new_data);
+                            Ok(new_data.len())
+                        })
+                        .unwrap();
                     transfer.perform().unwrap();
                 }
                 match String::from_utf8(data) {
@@ -1056,5 +1058,4 @@ mod tests {
     //         Some(redirect_url)
     //     );
     // }
-
 }

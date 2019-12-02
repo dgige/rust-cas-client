@@ -7,8 +7,8 @@ extern crate serde;
 
 extern crate cas_client_core;
 
-use cas_client_core::{CasClient, NoAuthBehavior};
 use cas_client_core::CasUser;
+use cas_client_core::{CasClient, NoAuthBehavior};
 
 use actix_service::{Service, Transform};
 use actix_session::UserSession;
@@ -89,7 +89,10 @@ where
     }
 
     // private functions
-    pub(self) fn authenticate_user(&self, req: &mut ServiceRequest) -> Option<HttpResponse> {
+    pub(self) fn authenticate_user(
+        &self,
+        req: &mut ServiceRequest,
+    ) -> Option<HttpResponse> {
         let query = String::from(req.query_string());
         let params = web::Query::<HashMap<String, String>>::from_query(&query);
         if let Err(_) = params {
@@ -102,15 +105,43 @@ where
                 None
             }
         };
+        let session = req.get_session();
         match user {
             Some(cas_user) => {
-                let session = req.get_session();
                 if let Err(err) = session.set("cas_user", cas_user) {
-                    error!("Error while saving user in session! Error: {}", err);
+                    error!("Error while saving cas_user in session! Error: {}", err);
                 };
+
+                if let Ok(after_logged_in_url) =
+                    session.get::<String>("after_logged_in_url")
+                {
+                    if let Some(return_path) = after_logged_in_url {
+                        session.remove("after_logged_in_url");
+                        return Some(
+                            HttpResponse::build(http::StatusCode::TEMPORARY_REDIRECT)
+                                .header(http::header::LOCATION, return_path)
+                                .finish(),
+                        );
+                    }
+                }
                 None
             }
             None => {
+                let connection_info = req.connection_info();
+                if let Err(err) = session.set(
+                    "after_logged_in_url",
+                    format!(
+                        "{}://{}{}",
+                        connection_info.scheme(),
+                        connection_info.host(),
+                        req.uri()
+                    ),
+                ) {
+                    error!(
+                        "Error while saving after_logged_in_url in session! Error: {}",
+                        err
+                    );
+                };
                 let login_url = self.cas_client.login_url().unwrap();
                 Some(
                     HttpResponse::build(http::StatusCode::TEMPORARY_REDIRECT)
@@ -164,11 +195,11 @@ where
             Some(resp) => {
                 debug!("*** CAS CLIENT MIDDLEWARE RESPONSE: INTERCEPT REQUEST ***");
                 Either::B(ok(req.into_response(resp.into_body())))
-            },
+            }
             None => {
                 debug!("*** CAS CLIENT MIDDLEWARE RESPONSE: CONTINUE ***");
                 Either::A(self.service.call(req))
-            },
+            }
         }
     }
 }
