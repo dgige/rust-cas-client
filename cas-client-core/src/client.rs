@@ -15,7 +15,7 @@ pub struct CasClient {
     logout_prefix: String,
     no_auth_behavior: NoAuthBehavior,
     cas_protocol: CasProtocol,
-    service_url: String,
+    app_url: String,
     service_validate_prefix: String,
     login_service: String,
 }
@@ -36,7 +36,7 @@ impl CasClient {
                 login_prefix: String::from("login"),
                 logout_prefix: String::from("logout"),
                 no_auth_behavior: NoAuthBehavior::Authenticate,
-                service_url: String::new(),
+                app_url: String::new(),
                 service_validate_prefix: String::from("serviceValidate"),
                 login_service: String::from("auth/cas"),
             }),
@@ -139,13 +139,13 @@ impl CasClient {
     }
 
     // Service url
-    pub fn service_url(&self) -> &str {
-        &self.service_url
+    pub fn app_url(&self) -> &str {
+        &self.app_url
     }
 
-    pub fn set_service_url(&mut self, service_url: &str) -> &mut Self {
-        match Url::parse(service_url) {
-            Ok(_) => self.service_url = service_url.to_string(),
+    pub fn set_app_url(&mut self, app_url: &str) -> &mut Self {
+        match Url::parse(app_url) {
+            Ok(_) => self.app_url = app_url.to_string(),
             Err(err) => error!("Invalid service url! Error: {:?}", err),
         };
         self
@@ -180,7 +180,7 @@ impl CasClient {
             &format!("{}{}", &self.cas_base_url(), &self.login_prefix()),
             &[(
                 "service",
-                &format!("{}/{}/login", self.service_url(), self.login_service()),
+                &format!("{}/{}/login", self.app_url(), self.login_service()),
             )],
         ) {
             Ok(url) => Some(url.to_string()),
@@ -194,7 +194,7 @@ impl CasClient {
     pub fn logout_url(&self) -> Option<String> {
         match Url::parse_with_params(
             &format!("{}{}", &self.cas_base_url(), &self.logout_prefix()),
-            &[("service", &format!("{}", self.service_url()))],
+            &[("service", &format!("{}", self.app_url()))],
         ) {
             Ok(url) => Some(url.to_string()),
             Err(e) => {
@@ -322,7 +322,7 @@ impl CasClient {
             &[
                 (
                     "service",
-                    &format!("{}/{}/login", self.service_url(), self.login_service()),
+                    &format!("{}/{}/login", self.app_url(), self.login_service()),
                 ),
                 ("ticket", &format!("{}", ticket)),
             ],
@@ -380,7 +380,7 @@ mod tests {
         assert_eq!(cas_client.logout_prefix, "logout");
         assert_eq!(cas_client.no_auth_behavior, NoAuthBehavior::Authenticate);
         assert_eq!(cas_client.cas_protocol, CasProtocol::V3);
-        assert_eq!(cas_client.service_url, String::new());
+        assert_eq!(cas_client.app_url, String::new());
         assert_eq!(cas_client.service_validate_prefix, "serviceValidate");
 
         let cas_base_url = "https://cas.example.org/";
@@ -558,40 +558,40 @@ mod tests {
 
     // Service url
     #[test]
-    fn service_url_getter_and_setter() {
+    fn app_url_getter_and_setter() {
         let cas_url = "https://cas.example.org";
         let mut cas_client = CasClient::new(cas_url).unwrap();
-        assert_eq!(cas_client.service_url(), "");
+        assert_eq!(cas_client.app_url(), "");
 
-        cas_client.set_service_url("https://service.example.org");
-        assert_eq!(cas_client.service_url(), "https://service.example.org");
+        cas_client.set_app_url("https://service.example.org");
+        assert_eq!(cas_client.app_url(), "https://service.example.org");
 
-        cas_client.set_service_url("https://service.example.org/");
-        assert_eq!(cas_client.service_url(), "https://service.example.org/");
+        cas_client.set_app_url("https://service.example.org/");
+        assert_eq!(cas_client.app_url(), "https://service.example.org/");
     }
 
     #[test]
-    fn service_url_not_updated_if_service_url_is_invalid() {
+    fn app_url_not_updated_if_app_url_is_invalid() {
         let cas_url = "https://cas.example.org";
         let mut cas_client = CasClient::new(cas_url).unwrap();
-        assert_eq!(cas_client.service_url(), "");
+        assert_eq!(cas_client.app_url(), "");
 
-        cas_client.set_service_url("service2.example.org");
-        assert_eq!(cas_client.service_url(), "");
+        cas_client.set_app_url("service2.example.org");
+        assert_eq!(cas_client.app_url(), "");
     }
 
     #[test]
-    fn set_service_url_should_return_self() {
+    fn set_app_url_should_return_self() {
         let cas_url = "https://cas.example.org";
         let mut cas_client = CasClient::new(cas_url).unwrap();
 
-        // Invalid service_url
-        let return_value = cas_client.set_service_url("").clone();
+        // Invalid app_url
+        let return_value = cas_client.set_app_url("").clone();
         assert_eq!(return_value, cas_client);
 
-        // Valid service_url
+        // Valid app_url
         let return_value = cas_client
-            .set_service_url("https://service.example.org")
+            .set_app_url("https://service.example.org")
             .clone();
         assert_eq!(return_value, cas_client);
     }
@@ -655,21 +655,21 @@ mod tests {
             cas_client.login_url(),
             Some(String::from("https://cas.example.org/login?service="))
         );
-        cas_client.set_service_url("https://service.example.org");
+        cas_client.set_app_url("https://service.example.org");
         assert_eq!(
             cas_client.login_url(),
             Some(String::from(
                 "https://cas.example.org/login?service=https%3A%2F%2Fservice.example.org"
             ))
         );
-        cas_client.set_service_url("https://service.example.org/");
+        cas_client.set_app_url("https://service.example.org/");
         assert_eq!(
             cas_client.login_url(),
             Some(String::from(
                 "https://cas.example.org/login?service=https%3A%2F%2Fservice.example.org%2F"
             ))
         );
-        cas_client.set_service_url("https://service.example.org/path");
+        cas_client.set_app_url("https://service.example.org/path");
         assert_eq!(
             cas_client.login_url(),
             Some(String::from(
@@ -687,21 +687,21 @@ mod tests {
             cas_client.logout_url(),
             Some(String::from("https://cas.example.org/logout?service="))
         );
-        cas_client.set_service_url("https://service.example.org");
+        cas_client.set_app_url("https://service.example.org");
         assert_eq!(
             cas_client.logout_url(),
             Some(String::from(
                 "https://cas.example.org/logout?service=https%3A%2F%2Fservice.example.org"
             ))
         );
-        cas_client.set_service_url("https://service.example.org/");
+        cas_client.set_app_url("https://service.example.org/");
         assert_eq!(
             cas_client.logout_url(),
             Some(String::from(
                 "https://cas.example.org/logout?service=https%3A%2F%2Fservice.example.org%2F"
             ))
         );
-        cas_client.set_service_url("https://service.example.org/path");
+        cas_client.set_app_url("https://service.example.org/path");
         assert_eq!(
             cas_client.logout_url(),
             Some(String::from(
@@ -777,7 +777,7 @@ mod tests {
             ))
         );
 
-        cas_client.set_service_url("https://service.example.org/");
+        cas_client.set_app_url("https://service.example.org/");
         assert_eq!(
             cas_client.service_validate_url(""),
             Some(String::from(
@@ -917,52 +917,52 @@ mod tests {
     //     assert_eq!(cas_client.protocol(), &CasProtocol::V2);
     // }
 
-    // // # set_service_url
+    // // # set_app_url
     // #[test]
-    // fn should_return_self_on_set_service_url() {
+    // fn should_return_self_on_set_app_url() {
     //     let cas_url = "https://cas.example.org";
     //     let mut cas_client = CasClient::new(cas_url).unwrap();
-    //     // Valid service_url
+    //     // Valid app_url
     //     let return_value = cas_client
-    //         .set_service_url("https://service.example.org")
+    //         .set_app_url("https://service.example.org")
     //         .clone();
     //     assert_eq!(return_value, cas_client);
-    //     // Invalid service_url
-    //     let return_value = cas_client.set_service_url("").clone();
+    //     // Invalid app_url
+    //     let return_value = cas_client.set_app_url("").clone();
     //     assert_eq!(return_value, cas_client);
     // }
 
     // #[test]
-    // fn should_update_service_url() {
+    // fn should_update_app_url() {
     //     let cas_url = "https://cas.example.org";
     //     let mut cas_client = CasClient::new(cas_url).unwrap();
-    //     let default_service_url = "";
-    //     let new_service_url = Url::parse("https://service.example.org")
+    //     let default_app_url = "";
+    //     let new_app_url = Url::parse("https://service.example.org")
     //         .unwrap()
     //         .to_string();
-    //     assert_eq!(cas_client.service_url(), default_service_url);
-    //     cas_client.set_service_url(&new_service_url);
-    //     assert_eq!(cas_client.service_url(), new_service_url);
+    //     assert_eq!(cas_client.app_url(), default_app_url);
+    //     cas_client.set_app_url(&new_app_url);
+    //     assert_eq!(cas_client.app_url(), new_app_url);
     // }
 
     // #[test]
-    // fn should_not_update_service_url_if_url_is_empty() {
+    // fn should_not_update_app_url_if_url_is_empty() {
     //     let cas_url = "https://cas.example.org";
     //     let mut cas_client = CasClient::new(cas_url).unwrap();
-    //     let default_service_url = "";
-    //     assert_eq!(cas_client.service_url(), default_service_url);
-    //     cas_client.set_service_url("");
-    //     assert_eq!(cas_client.service_url(), default_service_url);
+    //     let default_app_url = "";
+    //     assert_eq!(cas_client.app_url(), default_app_url);
+    //     cas_client.set_app_url("");
+    //     assert_eq!(cas_client.app_url(), default_app_url);
     // }
 
     // #[test]
-    // fn should_not_update_service_url_if_url_is_invalid() {
+    // fn should_not_update_app_url_if_url_is_invalid() {
     //     let cas_url = "https://cas.example.org";
     //     let mut cas_client = CasClient::new(cas_url).unwrap();
-    //     let default_service_url = "";
-    //     assert_eq!(cas_client.service_url(), default_service_url);
-    //     cas_client.set_service_url("service.example.org");
-    //     assert_eq!(cas_client.service_url(), default_service_url);
+    //     let default_app_url = "";
+    //     assert_eq!(cas_client.app_url(), default_app_url);
+    //     cas_client.set_app_url("service.example.org");
+    //     assert_eq!(cas_client.app_url(), default_app_url);
     // }
 
     // // # set_service_validate_url
@@ -1042,14 +1042,14 @@ mod tests {
     // // # redirect_url
 
     // #[test]
-    // fn should_return_redirect_url_with_service_url() {
+    // fn should_return_redirect_url_with_app_url() {
     //     let cas_url = "https://cas.example.org";
-    //     let service_url = "https://service.example.org";
+    //     let app_url = "https://service.example.org";
     //     let mut cas_client = CasClient::new(cas_url).unwrap();
-    //     cas_client.set_service_url(service_url);
+    //     cas_client.set_app_url(app_url);
     //     let redirect_url = Url::parse_with_params(
     //         &cas_client.cas_url(),
-    //         &[("service", &format!("{}", cas_client.service_url()))],
+    //         &[("service", &format!("{}", cas_client.app_url()))],
     //     )
     //     .unwrap()
     //     .to_string();
@@ -1079,12 +1079,12 @@ mod tests {
     // fn should_return_service_ticket_validation_url() {
     //     let cas_url = "https://cas.example.org";
     //     let ticket = "fake_tiket";
-    //     let service_url = "http://service.example.org";
+    //     let app_url = "http://service.example.org";
     //     let mut cas_client = CasClient::new(cas_url).unwrap();
-    //     cas_client.set_service_url(service_url);
+    //     cas_client.set_app_url(app_url);
     //     let redirect_url = Url::parse_with_params(
     //         cas_client.service_validate_url(),
-    //         &[("service", cas_client.service_url()), ("ticket", ticket)],
+    //         &[("service", cas_client.app_url()), ("ticket", ticket)],
     //     )
     //     .unwrap();
     //     assert_eq!(
