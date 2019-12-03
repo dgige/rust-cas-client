@@ -145,7 +145,7 @@ impl CasClient {
 
     pub fn set_app_url(&mut self, app_url: &str) -> &mut Self {
         match Url::parse(app_url) {
-            Ok(_) => self.app_url = app_url.to_string(),
+            Ok(_) => self.app_url = app_url.trim_end_matches("/").to_string(),
             Err(err) => error!("Invalid service url! Error: {:?}", err),
         };
         self
@@ -567,7 +567,7 @@ mod tests {
         assert_eq!(cas_client.app_url(), "https://service.example.org");
 
         cas_client.set_app_url("https://service.example.org/");
-        assert_eq!(cas_client.app_url(), "https://service.example.org/");
+        assert_eq!(cas_client.app_url(), "https://service.example.org");
     }
 
     #[test]
@@ -653,27 +653,34 @@ mod tests {
         let mut cas_client = CasClient::new(cas_url).unwrap();
         assert_eq!(
             cas_client.login_url(),
-            Some(String::from("https://cas.example.org/login?service="))
+            Some(String::from("https://cas.example.org/login?service=%2Fauth%2Fcas%2Flogin"))
         );
         cas_client.set_app_url("https://service.example.org");
         assert_eq!(
             cas_client.login_url(),
             Some(String::from(
-                "https://cas.example.org/login?service=https%3A%2F%2Fservice.example.org"
+                "https://cas.example.org/login?service=https%3A%2F%2Fservice.example.org%2Fauth%2Fcas%2Flogin"
             ))
         );
         cas_client.set_app_url("https://service.example.org/");
         assert_eq!(
             cas_client.login_url(),
             Some(String::from(
-                "https://cas.example.org/login?service=https%3A%2F%2Fservice.example.org%2F"
+                "https://cas.example.org/login?service=https%3A%2F%2Fservice.example.org%2Fauth%2Fcas%2Flogin"
             ))
         );
         cas_client.set_app_url("https://service.example.org/path");
         assert_eq!(
             cas_client.login_url(),
             Some(String::from(
-                "https://cas.example.org/login?service=https%3A%2F%2Fservice.example.org%2Fpath"
+                "https://cas.example.org/login?service=https%3A%2F%2Fservice.example.org%2Fpath%2Fauth%2Fcas%2Flogin"
+            ))
+        );
+        cas_client.set_app_url("https://service.example.org/path/");
+        assert_eq!(
+            cas_client.login_url(),
+            Some(String::from(
+                "https://cas.example.org/login?service=https%3A%2F%2Fservice.example.org%2Fpath%2Fauth%2Fcas%2Flogin"
             ))
         );
     }
@@ -698,7 +705,7 @@ mod tests {
         assert_eq!(
             cas_client.logout_url(),
             Some(String::from(
-                "https://cas.example.org/logout?service=https%3A%2F%2Fservice.example.org%2F"
+                "https://cas.example.org/logout?service=https%3A%2F%2Fservice.example.org"
             ))
         );
         cas_client.set_app_url("https://service.example.org/path");
@@ -773,7 +780,7 @@ mod tests {
         assert_eq!(
             cas_client.service_validate_url(""),
             Some(String::from(
-                "https://cas.example.org/serviceValidate?service=&ticket="
+                "https://cas.example.org/serviceValidate?service=%2Fauth%2Fcas%2Flogin&ticket="
             ))
         );
 
@@ -781,14 +788,14 @@ mod tests {
         assert_eq!(
             cas_client.service_validate_url(""),
             Some(String::from(
-                "https://cas.example.org/serviceValidate?service=https%3A%2F%2Fservice.example.org%2F&ticket="
+                "https://cas.example.org/serviceValidate?service=https%3A%2F%2Fservice.example.org%2Fauth%2Fcas%2Flogin&ticket="
             ))
         );
 
         assert_eq!(
             cas_client.service_validate_url("fake_ticket"),
             Some(String::from(
-                "https://cas.example.org/serviceValidate?service=https%3A%2F%2Fservice.example.org%2F&ticket=fake_ticket"
+                "https://cas.example.org/serviceValidate?service=https%3A%2F%2Fservice.example.org%2Fauth%2Fcas%2Flogin&ticket=fake_ticket"
             ))
         );
     }
