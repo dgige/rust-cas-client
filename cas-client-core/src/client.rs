@@ -17,6 +17,7 @@ pub struct CasClient {
     cas_protocol: CasProtocol,
     service_url: String,
     service_validate_prefix: String,
+    login_service: String,
 }
 
 impl CasClient {
@@ -37,6 +38,7 @@ impl CasClient {
                 no_auth_behavior: NoAuthBehavior::Authenticate,
                 service_url: String::new(),
                 service_validate_prefix: String::from("serviceValidate"),
+                login_service: String::from("auth/cas"),
             }),
             Err(e) => {
                 error!("CAS url is not valid! Error: {}", e);
@@ -52,6 +54,32 @@ impl CasClient {
     pub fn cas_base_url(&self) -> &Url {
         &self.cas_base_url
     }
+
+    // Login service
+    // ###########
+    // BEGIN TODO: TEST
+    // ###########
+    pub fn login_service(&self) -> &String {
+        &self.login_service
+    }
+
+    pub fn set_login_service(&mut self, login_service: &str) -> &mut Self {
+        self.login_service = login_service.to_string();
+        if self.login_service.len() != 0 {
+            if self.login_service.starts_with('/') {
+                self.login_service = self.login_service[1..].to_string();
+            }
+            if self.login_service.ends_with('/') {
+                self.login_service.pop();
+            }
+        } else {
+            error!("Login service cannot be empty");
+        }
+        self
+    }
+    // ###########
+    // END TODO
+    // ###########
 
     // Login prefix
     pub fn login_prefix(&self) -> &String {
@@ -150,7 +178,10 @@ impl CasClient {
     pub fn login_url(&self) -> Option<String> {
         match Url::parse_with_params(
             &format!("{}{}", &self.cas_base_url(), &self.login_prefix()),
-            &[("service", &format!("{}", self.service_url()))],
+            &[(
+                "service",
+                &format!("{}/{}/login", self.service_url(), self.login_service()),
+            )],
         ) {
             Ok(url) => Some(url.to_string()),
             Err(e) => {
@@ -289,7 +320,10 @@ impl CasClient {
                 &self.service_validate_prefix()
             ),
             &[
-                ("service", &format!("{}", self.service_url())),
+                (
+                    "service",
+                    &format!("{}/{}/login", self.service_url(), self.login_service()),
+                ),
                 ("ticket", &format!("{}", ticket)),
             ],
         ) {

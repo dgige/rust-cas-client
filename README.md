@@ -21,6 +21,8 @@ cargo test -p cas-client-core
 ```
 
 ## TODO
+- Move login/logout method to actix module
+- Logout
 - Tests
 - Documentation
 - Refactoring
