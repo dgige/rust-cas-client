@@ -25,10 +25,11 @@ impl CasClient {
     // Constructor
     // ################################################################################
     pub fn new(cas_base_url: &str) -> Result<Self, &str> {
-        let _cas_base_url = match cas_base_url.chars().last().unwrap_or_default() {
-            '/' => cas_base_url.to_string(),
+        let _cas_base_url = match cas_base_url.ends_with('/') {
+            true => cas_base_url.to_string(),
             _ => cas_base_url.to_string() + "/",
         };
+
         match Url::parse(&_cas_base_url) {
             Ok(url) => Ok(CasClient {
                 cas_base_url: url,
@@ -56,16 +57,13 @@ impl CasClient {
     }
 
     // Login service
-    // ###########
-    // BEGIN TODO: TEST
-    // ###########
     pub fn login_service(&self) -> &String {
         &self.login_service
     }
 
     pub fn set_login_service(&mut self, login_service: &str) -> &mut Self {
-        self.login_service = login_service.to_string();
-        if self.login_service.len() != 0 {
+        if login_service.len() != 0 {
+            self.login_service = login_service.to_string();
             if self.login_service.starts_with('/') {
                 self.login_service = self.login_service[1..].to_string();
             }
@@ -77,9 +75,6 @@ impl CasClient {
         }
         self
     }
-    // ###########
-    // END TODO
-    // ###########
 
     // Login prefix
     pub fn login_prefix(&self) -> &String {
@@ -88,10 +83,13 @@ impl CasClient {
 
     pub fn set_login_prefix(&mut self, login_prefix: &str) -> &mut Self {
         if login_prefix.len() != 0 {
-            self.login_prefix = match login_prefix.chars().next().unwrap() {
-                '/' => login_prefix[1..].to_string(),
-                _ => login_prefix.to_string(),
-            };
+            self.login_prefix = login_prefix.to_string();
+            if self.login_prefix.starts_with('/') {
+                self.login_prefix = self.login_prefix[1..].to_string();
+            }
+            if self.login_prefix.ends_with('/') {
+                self.login_prefix.pop();
+            }
         } else {
             error!("Login prefix cannot be empty");
         }
@@ -105,10 +103,13 @@ impl CasClient {
 
     pub fn set_logout_prefix(&mut self, logout_prefix: &str) -> &mut Self {
         if logout_prefix.len() != 0 {
-            self.logout_prefix = match logout_prefix.chars().next().unwrap() {
-                '/' => logout_prefix[1..].to_string(),
-                _ => logout_prefix.to_string(),
-            };
+            self.logout_prefix = logout_prefix.to_string();
+            if self.logout_prefix.starts_with('/') {
+                self.logout_prefix = self.logout_prefix[1..].to_string();
+            }
+            if self.logout_prefix.ends_with('/') {
+                self.logout_prefix.pop();
+            }
         } else {
             error!("Logout prefix cannot be empty");
         }
@@ -161,11 +162,14 @@ impl CasClient {
         service_validate_prefix: &str,
     ) -> &mut Self {
         if service_validate_prefix.len() != 0 {
-            self.service_validate_prefix =
-                match service_validate_prefix.chars().next().unwrap() {
-                    '/' => service_validate_prefix[1..].to_string(),
-                    _ => service_validate_prefix.to_string(),
-                };
+            self.service_validate_prefix = service_validate_prefix.to_string();
+            if self.service_validate_prefix.starts_with('/') {
+                self.service_validate_prefix =
+                    self.service_validate_prefix[1..].to_string();
+            }
+            if self.service_validate_prefix.ends_with('/') {
+                self.service_validate_prefix.pop();
+            }
         } else {
             error!("Service validate prefix cannot be empty");
         }
@@ -455,7 +459,7 @@ mod tests {
         cas_client.set_login_prefix("custom_login_path");
         assert_eq!(cas_client.login_prefix, "custom_login_path");
 
-        cas_client.set_login_prefix("custom_login_path");
+        cas_client.set_login_prefix("custom_login_path/");
         assert_eq!(cas_client.login_prefix, "custom_login_path");
 
         cas_client.set_login_prefix("/custom_login_path");
@@ -476,6 +480,42 @@ mod tests {
         assert_eq!(return_value, cas_client);
     }
 
+    // Login service
+    #[test]
+    fn login_service_getter_and_setter() {
+        let cas_url = "https://cas.example.org";
+        let mut cas_client = CasClient::new(cas_url).unwrap();
+        assert_eq!(cas_client.login_service, "auth/cas");
+
+        // Invalid login_service
+        cas_client.set_login_service("");
+        assert_eq!(cas_client.login_service, "auth/cas");
+
+        // Valid login_service
+        cas_client.set_login_service("auth/mycas");
+        assert_eq!(cas_client.login_service, "auth/mycas");
+
+        cas_client.set_login_service("auth/mycas/");
+        assert_eq!(cas_client.login_service, "auth/mycas");
+
+        cas_client.set_login_service("/auth/mycas");
+        assert_eq!(cas_client.login_service, "auth/mycas");
+    }
+
+    #[test]
+    fn set_login_service_should_return_self() {
+        let cas_url = "https://cas.example.org";
+        let mut cas_client = CasClient::new(cas_url).unwrap();
+
+        // Invalid login_service
+        let return_value = cas_client.set_login_service("").clone();
+        assert_eq!(return_value, cas_client);
+
+        // Valid login_service
+        let return_value = cas_client.set_login_service("auth/mycas").clone();
+        assert_eq!(return_value, cas_client);
+    }
+
     // Logout prefix
     #[test]
     fn logout_prefix_getter_and_setter() {
@@ -489,10 +529,9 @@ mod tests {
 
         // Valid logout prefix
         cas_client.set_logout_prefix("custom_logout_path");
-        cas_client.set_logout_prefix("custom_logout_path");
         assert_eq!(cas_client.logout_prefix, "custom_logout_path");
 
-        cas_client.set_logout_prefix("custom_logout_path");
+        cas_client.set_logout_prefix("custom_logout_path/");
         assert_eq!(cas_client.logout_prefix, "custom_logout_path");
 
         cas_client.set_logout_prefix("/custom_logout_path");
@@ -556,7 +595,7 @@ mod tests {
         assert_eq!(return_value, cas_client);
     }
 
-    // Service url
+    // App url
     #[test]
     fn app_url_getter_and_setter() {
         let cas_url = "https://cas.example.org";
@@ -577,6 +616,9 @@ mod tests {
         assert_eq!(cas_client.app_url(), "");
 
         cas_client.set_app_url("service2.example.org");
+        assert_eq!(cas_client.app_url(), "");
+
+        cas_client.set_app_url("https//service.example.org/");
         assert_eq!(cas_client.app_url(), "");
     }
 
@@ -614,7 +656,7 @@ mod tests {
             "custom_serviceValidate_path"
         );
 
-        cas_client.set_service_validate_prefix("custom_serviceValidate_path");
+        cas_client.set_service_validate_prefix("custom_serviceValidate_path/");
         assert_eq!(
             cas_client.service_validate_prefix,
             "custom_serviceValidate_path"
@@ -653,7 +695,9 @@ mod tests {
         let mut cas_client = CasClient::new(cas_url).unwrap();
         assert_eq!(
             cas_client.login_url(),
-            Some(String::from("https://cas.example.org/login?service=%2Fauth%2Fcas%2Flogin"))
+            Some(String::from(
+                "https://cas.example.org/login?service=%2Fauth%2Fcas%2Flogin"
+            ))
         );
         cas_client.set_app_url("https://service.example.org");
         assert_eq!(
@@ -721,6 +765,7 @@ mod tests {
     // Private functions
     // ################################################################################
 
+    // parse_saml_response
     #[test]
     fn should_parse_saml_response() {
         let cas_url = "https://cas.example.org";
@@ -799,304 +844,4 @@ mod tests {
             ))
         );
     }
-
-    // ################################################################################
-    // TO ORDER
-    // ################################################################################
-    // Getters
-
-    // #[test]
-    // fn should_not_update_login_url_if_url_is_empty() {
-    //     let cas_url = "https://cas.example.org";
-    //     let mut cas_client = CasClient::new(cas_url).unwrap();
-    //     let default_login_url = Url::parse(&format!("{}login", cas_client.cas_url()))
-    //         .unwrap()
-    //         .to_string();
-    //     assert_eq!(cas_client.login_url(), default_login_url);
-    //     cas_client.set_login_url("");
-    //     assert_eq!(cas_client.login_url(), default_login_url);
-    // }
-
-    // #[test]
-    // fn should_not_update_login_url_if_url_is_invalid() {
-    //     let cas_url = "https://cas.example.org";
-    //     let mut cas_client = CasClient::new(cas_url).unwrap();
-    //     let default_login_url = Url::parse(&format!("{}login", cas_client.cas_url()))
-    //         .unwrap()
-    //         .to_string();
-    //     assert_eq!(cas_client.login_url(), default_login_url);
-    //     cas_client.set_login_url("cas.example.org/mylogin");
-    //     assert_eq!(cas_client.login_url(), default_login_url);
-    // }
-
-    // // # set_logout_url
-    // #[test]
-    // fn should_return_self_on_set_logout_url() {
-    //     let cas_url = "https://cas.example.org";
-    //     let mut cas_client = CasClient::new(cas_url).unwrap();
-    //     // Valid logout_url
-    //     let return_value = cas_client
-    //         .set_logout_url("https://cas.example.org/mylogout")
-    //         .clone();
-    //     assert_eq!(return_value, cas_client);
-    //     // Invalid logout_url
-    //     let return_value = cas_client.set_logout_url("").clone();
-    //     assert_eq!(return_value, cas_client);
-    // }
-
-    // #[test]
-    // fn should_update_logout_url() {
-    //     let cas_url = "https://cas.example.org";
-    //     let mut cas_client = CasClient::new(cas_url).unwrap();
-    //     let default_logout_url = Url::parse(&format!("{}logout", cas_client.cas_url()))
-    //         .unwrap()
-    //         .to_string();
-    //     let new_logout_url = Url::parse(&format!("{}mylogout", cas_client.cas_url()))
-    //         .unwrap()
-    //         .to_string();
-    //     assert_eq!(cas_client.logout_url(), default_logout_url);
-    //     cas_client.set_logout_url(&new_logout_url);
-    //     assert_eq!(cas_client.logout_url(), new_logout_url);
-    // }
-
-    // #[test]
-    // fn should_not_update_logout_url_if_url_is_empty() {
-    //     let cas_url = "https://cas.example.org";
-    //     let mut cas_client = CasClient::new(cas_url).unwrap();
-    //     let default_logout_url = Url::parse(&format!("{}logout", cas_client.cas_url()))
-    //         .unwrap()
-    //         .to_string();
-    //     assert_eq!(cas_client.logout_url(), default_logout_url);
-    //     cas_client.set_logout_url("");
-    //     assert_eq!(cas_client.logout_url(), default_logout_url);
-    // }
-
-    // #[test]
-    // fn should_not_update_logout_url_if_url_is_invalid() {
-    //     let cas_url = "https://cas.example.org";
-    //     let mut cas_client = CasClient::new(cas_url).unwrap();
-    //     let default_logout_url = Url::parse(&format!("{}logout", cas_client.cas_url()))
-    //         .unwrap()
-    //         .to_string();
-    //     assert_eq!(cas_client.logout_url(), default_logout_url);
-    //     cas_client.set_logout_url("cas.example.org/mylogout");
-    //     assert_eq!(cas_client.logout_url(), default_logout_url);
-    // }
-
-    // // # cas_protocol
-    // #[test]
-    // fn should_return_self_on_set_no_auth_behavior() {
-    //     let cas_url = "https://cas.example.org";
-    //     let mut cas_client = CasClient::new(cas_url).unwrap();
-    //     let return_value = cas_client
-    //         .set_no_auth_behavior(NoAuthBehavior::AuthenticatedOr403)
-    //         .clone();
-    //     assert_eq!(return_value, cas_client);
-    // }
-
-    // #[test]
-    // fn should_update_no_auth_behavior() {
-    //     let cas_url = "https://cas.example.org";
-    //     let mut cas_client = CasClient::new(cas_url).unwrap();
-    //     assert_eq!(cas_client.no_auth_behavior(), &NoAuthBehavior::Authenticate);
-    //     cas_client.set_no_auth_behavior(NoAuthBehavior::AuthenticatedOr403);
-    //     assert_eq!(
-    //         cas_client.no_auth_behavior(),
-    //         &NoAuthBehavior::AuthenticatedOr403
-    //     );
-    // }
-
-    // // # set_protocol
-    // #[test]
-    // fn should_return_self_on_set_protocol() {
-    //     let cas_url = "https://cas.example.org";
-    //     let mut cas_client = CasClient::new(cas_url).unwrap();
-    //     let return_value = cas_client.set_protocol(CasProtocol::V2).clone();
-    //     assert_eq!(return_value, cas_client);
-    // }
-
-    // #[test]
-    // fn should_update_protocol() {
-    //     let cas_url = "https://cas.example.org";
-    //     let mut cas_client = CasClient::new(cas_url).unwrap();
-    //     assert_eq!(cas_client.protocol(), &CasProtocol::V3);
-    //     cas_client.set_protocol(CasProtocol::V2);
-    //     assert_eq!(cas_client.protocol(), &CasProtocol::V2);
-    // }
-
-    // // # set_app_url
-    // #[test]
-    // fn should_return_self_on_set_app_url() {
-    //     let cas_url = "https://cas.example.org";
-    //     let mut cas_client = CasClient::new(cas_url).unwrap();
-    //     // Valid app_url
-    //     let return_value = cas_client
-    //         .set_app_url("https://service.example.org")
-    //         .clone();
-    //     assert_eq!(return_value, cas_client);
-    //     // Invalid app_url
-    //     let return_value = cas_client.set_app_url("").clone();
-    //     assert_eq!(return_value, cas_client);
-    // }
-
-    // #[test]
-    // fn should_update_app_url() {
-    //     let cas_url = "https://cas.example.org";
-    //     let mut cas_client = CasClient::new(cas_url).unwrap();
-    //     let default_app_url = "";
-    //     let new_app_url = Url::parse("https://service.example.org")
-    //         .unwrap()
-    //         .to_string();
-    //     assert_eq!(cas_client.app_url(), default_app_url);
-    //     cas_client.set_app_url(&new_app_url);
-    //     assert_eq!(cas_client.app_url(), new_app_url);
-    // }
-
-    // #[test]
-    // fn should_not_update_app_url_if_url_is_empty() {
-    //     let cas_url = "https://cas.example.org";
-    //     let mut cas_client = CasClient::new(cas_url).unwrap();
-    //     let default_app_url = "";
-    //     assert_eq!(cas_client.app_url(), default_app_url);
-    //     cas_client.set_app_url("");
-    //     assert_eq!(cas_client.app_url(), default_app_url);
-    // }
-
-    // #[test]
-    // fn should_not_update_app_url_if_url_is_invalid() {
-    //     let cas_url = "https://cas.example.org";
-    //     let mut cas_client = CasClient::new(cas_url).unwrap();
-    //     let default_app_url = "";
-    //     assert_eq!(cas_client.app_url(), default_app_url);
-    //     cas_client.set_app_url("service.example.org");
-    //     assert_eq!(cas_client.app_url(), default_app_url);
-    // }
-
-    // // # set_service_validate_url
-    // #[test]
-    // fn should_return_self_on_set_service_validate_url() {
-    //     let cas_url = "https://cas.example.org";
-    //     let mut cas_client = CasClient::new(cas_url).unwrap();
-    //     // Valid logout_url
-    //     let return_value = cas_client
-    //         .set_service_validate_url("https://cas.example.org/mylogout")
-    //         .clone();
-    //     assert_eq!(return_value, cas_client);
-    //     // Invalid logout_url
-    //     let return_value = cas_client.set_service_validate_url("").clone();
-    //     assert_eq!(return_value, cas_client);
-    // }
-
-    // #[test]
-    // fn should_update_service_validate_url() {
-    //     let cas_url = "https://cas.example.org";
-    //     let mut cas_client = CasClient::new(cas_url).unwrap();
-    //     let default_service_validate_url =
-    //         Url::parse(&format!("{}serviceValidate", cas_client.cas_url()))
-    //             .unwrap()
-    //             .to_string();
-    //     let new_service_validate_url =
-    //         Url::parse(&format!("{}myserviceValidate", cas_client.cas_url()))
-    //             .unwrap()
-    //             .to_string();
-    //     assert_eq!(
-    //         cas_client.service_validate_url(),
-    //         default_service_validate_url
-    //     );
-    //     cas_client.set_service_validate_url(&new_service_validate_url);
-    //     assert_eq!(cas_client.service_validate_url(), new_service_validate_url);
-    // }
-
-    // #[test]
-    // fn should_not_update_service_validate_url_if_url_is_empty() {
-    //     let cas_url = "https://cas.example.org";
-    //     let mut cas_client = CasClient::new(cas_url).unwrap();
-    //     let default_service_validate_url =
-    //         Url::parse(&format!("{}serviceValidate", cas_client.cas_url()))
-    //             .unwrap()
-    //             .to_string();
-    //     assert_eq!(
-    //         cas_client.service_validate_url(),
-    //         default_service_validate_url
-    //     );
-    //     cas_client.set_service_validate_url("");
-    //     assert_eq!(
-    //         cas_client.service_validate_url(),
-    //         default_service_validate_url
-    //     );
-    // }
-
-    // #[test]
-    // fn should_not_update_service_validate_url_if_url_is_invalid() {
-    //     let cas_url = "https://cas.example.org";
-    //     let mut cas_client = CasClient::new(cas_url).unwrap();
-    //     let default_service_validate_url =
-    //         Url::parse(&format!("{}serviceValidate", cas_client.cas_url()))
-    //             .unwrap()
-    //             .to_string();
-    //     assert_eq!(
-    //         cas_client.service_validate_url(),
-    //         default_service_validate_url
-    //     );
-    //     cas_client.set_service_validate_url("cas.example.org/myserviceValidate");
-    //     assert_eq!(
-    //         cas_client.service_validate_url(),
-    //         default_service_validate_url
-    //     );
-    // }
-
-    // // Public functions
-    // // # redirect_url
-
-    // #[test]
-    // fn should_return_redirect_url_with_app_url() {
-    //     let cas_url = "https://cas.example.org";
-    //     let app_url = "https://service.example.org";
-    //     let mut cas_client = CasClient::new(cas_url).unwrap();
-    //     cas_client.set_app_url(app_url);
-    //     let redirect_url = Url::parse_with_params(
-    //         &cas_client.cas_url(),
-    //         &[("service", &format!("{}", cas_client.app_url()))],
-    //     )
-    //     .unwrap()
-    //     .to_string();
-    //     assert_eq!(cas_client.redirect_url(), Some(redirect_url));
-    // }
-
-    // // # validate_service_ticket
-    // // ###########
-    // // BEGIN TODO
-    // // ###########
-    // // #[test]
-    // // fn should_return_cas_user() {
-    // //     let cas_url = "https://cas.example.org";
-    // //     let cas_client = CasClient::new(cas_url).unwrap();
-    // //     let cas_user = CasUser::new("", None);
-    // //     assert_eq!(
-    // //         cas_client.validate_service_ticket("fake_ticket"),
-    // //         Some(cas_user)
-    // //     );
-    // // }
-    // // ###########
-    // // END TODO
-    // // ###########
-
-    // // Private functions
-    // #[test]
-    // fn should_return_service_ticket_validation_url() {
-    //     let cas_url = "https://cas.example.org";
-    //     let ticket = "fake_tiket";
-    //     let app_url = "http://service.example.org";
-    //     let mut cas_client = CasClient::new(cas_url).unwrap();
-    //     cas_client.set_app_url(app_url);
-    //     let redirect_url = Url::parse_with_params(
-    //         cas_client.service_validate_url(),
-    //         &[("service", cas_client.app_url()), ("ticket", ticket)],
-    //     )
-    //     .unwrap();
-    //     assert_eq!(
-    //         cas_client.service_ticket_validation_url(ticket),
-    //         Some(redirect_url)
-    //     );
-    // }
 }

@@ -63,8 +63,7 @@ fn main() -> std::io::Result<()> {
 
 fn init_cas_client(auth_service: &str) -> ActixCasClient {
     let cas_url = env::var("CAS_URL").unwrap_or("https://cas.example.com".to_string());
-    let app_url =
-        env::var("APP_URL").unwrap_or("http://localhost:3000".to_string());
+    let app_url = env::var("APP_URL").unwrap_or("http://localhost:3000".to_string());
     let mut cas_client = CasClient::new(&cas_url).unwrap();
     cas_client.set_app_url(&app_url);
     cas_client.set_no_auth_behavior(NoAuthBehavior::Authenticate);
