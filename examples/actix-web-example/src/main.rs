@@ -16,12 +16,16 @@ fn guest() -> impl Responder {
         .body("Welcome <b>Guest</b>!<br><a href='/user'>Login</a>")
 }
 
-fn user(mut req: HttpRequest) -> impl Responder {
+fn user(mut req: HttpRequest, cas_client: web::Data<ActixCasClient>) -> impl Responder {
     let session = req.get_session();
     let user = session.get::<CasUser>("cas_user").unwrap().unwrap();
     HttpResponse::build(StatusCode::OK)
         .content_type("text/html; charset=utf-8")
-        .body(format!("Welcome <b>{}</b>!", user.username()))
+        .body(format!(
+            "Welcome <b>{}</b>!<br><a href='{}'>Logout</a>",
+            user.username(),
+            cas_client.logout_url()
+        ))
 }
 
 fn main() -> std::io::Result<()> {
@@ -39,6 +43,7 @@ fn main() -> std::io::Result<()> {
         let cas_client = init_cas_client(&auth_service);
         App::new()
             .wrap(CookieSession::signed(&[0; 32]).secure(false))
+            .data(cas_client.clone())
             .service(guest)
             .service(
                 web::scope("/user")
@@ -49,11 +54,8 @@ fn main() -> std::io::Result<()> {
             .service(
                 web::scope(auth_service)
                     .wrap(cas_client.clone())
-                    .route("/login", web::get().to(|| HttpResponse::Ok().body("login")))
-                    .route(
-                        "/logout",
-                        web::get().to(|| HttpResponse::Ok().body("logout")),
-                    ),
+                    .route("/login", web::get().to(cas_client::actix::urls::login))
+                    .route("/logout", web::get().to(cas_client::actix::urls::logout)),
             )
     })
     .bind(server_bind_address)?

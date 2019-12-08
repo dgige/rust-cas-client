@@ -7,6 +7,8 @@ extern crate serde;
 
 extern crate cas_client_core;
 
+pub mod urls;
+
 use cas_client_core::CasUser;
 use cas_client_core::{CasClient, NoAuthBehavior};
 
@@ -28,6 +30,14 @@ pub struct ActixCasClient {
 impl ActixCasClient {
     pub fn new(cas_client: CasClient) -> Self {
         ActixCasClient { cas_client }
+    }
+
+    pub fn login_url(&self) -> String {
+        self.cas_client.login_url().unwrap()
+    }
+
+    pub fn logout_url(&self) -> String {
+        self.cas_client.logout_url().unwrap()
     }
 }
 
