@@ -215,7 +215,10 @@ impl CasClient {
         debug!("Validating service ticket: {:#?}", service_ticket);
 
         let resp = match self.fetch_cas_validation(service_ticket) {
-            Some(r) => r,
+            Some(r) => {
+                debug!("Got response from cas validation");
+                r
+            }
             None => {
                 error!("Error while fetching cas validation!");
                 return None;
