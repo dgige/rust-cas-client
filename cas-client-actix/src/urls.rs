@@ -1,21 +1,21 @@
 use super::ActixCasClient;
 use actix_session::UserSession;
 use actix_web::http;
-use actix_web::{web, HttpRequest, HttpResponse, Responder};
+use actix_web::{web, Error, HttpRequest, HttpResponse};
 
-pub fn login() -> impl Responder {
-    HttpResponse::build(http::StatusCode::OK)
+pub async fn login() -> Result<HttpResponse, Error> {
+    Ok(HttpResponse::build(http::StatusCode::OK)
         .content_type("text/html; charset=utf-8")
-        .body("login")
+        .body("login"))
 }
 
-pub fn logout(
-    mut req: HttpRequest,
+pub async fn logout(
+    req: HttpRequest,
     cas_client: web::Data<ActixCasClient>,
-) -> impl Responder {
+) -> Result<HttpResponse, Error> {
     let session = req.get_session();
     session.remove("cas_user");
-    HttpResponse::build(http::StatusCode::TEMPORARY_REDIRECT)
+    Ok(HttpResponse::build(http::StatusCode::TEMPORARY_REDIRECT)
         .header(http::header::LOCATION, cas_client.logout_url())
-        .finish()
+        .finish())
 }
