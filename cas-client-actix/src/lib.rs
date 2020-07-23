@@ -39,6 +39,10 @@ impl ActixCasClient {
     pub fn logout_url(&self) -> String {
         self.cas_client.logout_url().unwrap()
     }
+
+    pub fn app_url(&self) -> String {
+        self.cas_client.app_url().to_string()
+    }
 }
 
 impl<S, B> Transform<S> for ActixCasClient
@@ -100,10 +104,8 @@ where
     }
 
     // private functions
-    pub(self) fn authenticate_user(
-        &self,
-        req: &mut ServiceRequest,
-    ) -> Option<HttpResponse> {
+    pub(self) fn authenticate_user(&self, req: &mut ServiceRequest) -> Option<HttpResponse> {
+        let session = req.get_session();
         let query = String::from(req.query_string());
         let params = web::Query::<HashMap<String, String>>::from_query(&query);
         if let Err(_) = params {
@@ -119,51 +121,35 @@ where
                 None
             }
         };
-        let session = req.get_session();
-        match user {
+        let redirect_url = match user {
             Some(cas_user) => {
                 if let Err(err) = session.set("cas_user", cas_user) {
                     error!("Error while saving cas_user in session! Error: {}", err);
                 };
-
-                if let Ok(after_logged_in_url) =
-                    session.get::<String>("after_logged_in_url")
-                {
-                    if let Some(return_path) = after_logged_in_url {
+                match session.get::<String>("after_logged_in_url") {
+                    Ok(Some(return_path)) => {
                         session.remove("after_logged_in_url");
-                        return Some(
-                            HttpResponse::build(http::StatusCode::TEMPORARY_REDIRECT)
-                                .header(http::header::LOCATION, return_path)
-                                .finish(),
-                        );
+                        return_path
+                    },
+                    _ => {
+                        self.cas_client.app_url().to_string()
                     }
                 }
-                None
             }
             None => {
                 let connection_info = req.connection_info();
-                if let Err(err) = session.set(
-                    "after_logged_in_url",
-                    format!(
-                        "{}://{}{}",
-                        connection_info.scheme(),
-                        connection_info.host(),
-                        req.uri()
-                    ),
-                ) {
-                    error!(
-                        "Error while saving after_logged_in_url in session! Error: {}",
-                        err
-                    );
+                let after_logged_in_url = format!("{}://{}{}", connection_info.scheme(), connection_info.host(), req.uri());
+                if let Err(err) = session.set("after_logged_in_url", after_logged_in_url ) {
+                    error!("Error while saving after_logged_in_url in session! Error: {}", err);
                 };
-                let login_url = self.cas_client.login_url().unwrap();
-                Some(
-                    HttpResponse::build(http::StatusCode::TEMPORARY_REDIRECT)
-                        .header(http::header::LOCATION, login_url)
-                        .finish(),
-                )
+                self.cas_client.login_url().unwrap()
             }
-        }
+        };
+        Some(
+            HttpResponse::build(http::StatusCode::TEMPORARY_REDIRECT)
+                .header(http::header::LOCATION, redirect_url)
+                .finish(),
+        )
     }
 
     pub(self) fn authenticated_or_error(

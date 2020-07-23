@@ -14,21 +14,27 @@ use std::env;
 async fn guest(_req: HttpRequest) -> Result<HttpResponse, Error> {
     Ok(HttpResponse::build(StatusCode::OK)
         .content_type("text/html; charset=utf-8")
-        .body("Welcome <b>Guest</b>!<br><a href='/user'>Login</a>"))
+        .body("
+            Welcome <b>Guest</b>!
+            <br>
+            <br><a href='/user'>Login (to '/user')</a>
+            <br><a href='/user/welcome'>Login (to '/user/welcome')</a>
+        "))
 }
 
 async fn user(
     req: HttpRequest,
-    cas_client: web::Data<ActixCasClient>,
 ) -> Result<HttpResponse, Error> {
     let session = req.get_session();
     let user = session.get::<CasUser>("cas_user").unwrap().unwrap();
     Ok(HttpResponse::build(StatusCode::OK)
         .content_type("text/html; charset=utf-8")
         .body(format!(
-            "Welcome <b>{}</b>!<br><a href='{}'>Logout</a>",
+            "Welcome <b>{}</b>!
+            <br>
+            <br>
+            <a href='/auth/cas/logout'>Logout</a>",
             user.username(),
-            cas_client.logout_url()
         )))
 }
 
@@ -52,10 +58,13 @@ async fn main() -> std::io::Result<()> {
                     .route("/welcome", web::get().to(user)),
             )
             .service(
+                web::scope(&format!("{}/logout", auth_service))
+                    .route("", web::get().to(cas_client::actix::urls::logout))
+            )
+            .service(
                 web::scope(auth_service)
                     .wrap(cas_client.clone())
-                    .route("/login", web::get().to(cas_client::actix::urls::login))
-                    .route("/logout", web::get().to(cas_client::actix::urls::logout)),
+                    .route("/login", web::get().to(cas_client::actix::urls::login)),
             )
     })
     .bind("localhost:8080")?
