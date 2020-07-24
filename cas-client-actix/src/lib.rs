@@ -81,14 +81,10 @@ where
 {
     fn authenticate(&self, req: &mut ServiceRequest) -> Option<HttpResponse> {
         let session = req.get_session();
-        if let Ok(session_key) = session.get::<CasUser>("cas_user") {
-            match session_key {
-                None => self.authenticate_user(req),
-                _ => None,
-            }
-        } else {
-            None
+        if let Ok(None) = session.get::<CasUser>("cas_user") {
+            return self.authenticate_user(req);
         }
+        None
     }
 
     fn authenticated_or_403(&self, req: &mut ServiceRequest) -> Option<HttpResponse> {
@@ -152,20 +148,12 @@ where
         )
     }
 
-    pub(self) fn authenticated_or_error(
-        &self,
-        req: &mut ServiceRequest,
-        status_code: http::StatusCode,
-    ) -> Option<HttpResponse> {
+    pub(self) fn authenticated_or_error(&self, req: &mut ServiceRequest, status_code: http::StatusCode) -> Option<HttpResponse> {
         let session = req.get_session();
-        if let Ok(session_key) = session.get::<CasUser>("cas_user") {
-            match session_key {
-                None => Some(HttpResponse::build(status_code).finish()),
-                _ => None,
-            }
-        } else {
-            Some(HttpResponse::build(status_code).finish())
+        if let Ok(Some(_)) = session.get::<CasUser>("cas_user") {
+            return Some(HttpResponse::build(status_code).finish())
         }
+        None
     }
 }
 
@@ -195,8 +183,6 @@ where
         match resp {
             Some(resp) => {
                 debug!("*** CAS CLIENT MIDDLEWARE RESPONSE: INTERCEPT REQUEST ***");
-                // type Future = Either<S::Future, Ready<Result<Self::Response, Self::Error>>>;
-
                 Either::Right(ok(req.into_response(resp.into_body())))
             }
             None => {

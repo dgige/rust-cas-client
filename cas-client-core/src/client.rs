@@ -62,7 +62,7 @@ impl CasClient {
     }
 
     pub fn set_login_service(&mut self, login_service: &str) -> &mut Self {
-        if login_service.len() != 0 {
+        if !login_service.is_empty() {
             self.login_service = login_service.to_string();
             if self.login_service.starts_with('/') {
                 self.login_service = self.login_service[1..].to_string();
@@ -82,7 +82,7 @@ impl CasClient {
     }
 
     pub fn set_login_prefix(&mut self, login_prefix: &str) -> &mut Self {
-        if login_prefix.len() != 0 {
+        if !login_prefix.is_empty() {
             self.login_prefix = login_prefix.to_string();
             if self.login_prefix.starts_with('/') {
                 self.login_prefix = self.login_prefix[1..].to_string();
@@ -102,7 +102,7 @@ impl CasClient {
     }
 
     pub fn set_logout_prefix(&mut self, logout_prefix: &str) -> &mut Self {
-        if logout_prefix.len() != 0 {
+        if !logout_prefix.is_empty() {
             self.logout_prefix = logout_prefix.to_string();
             if self.logout_prefix.starts_with('/') {
                 self.logout_prefix = self.logout_prefix[1..].to_string();
@@ -146,7 +146,7 @@ impl CasClient {
 
     pub fn set_app_url(&mut self, app_url: &str) -> &mut Self {
         match Url::parse(app_url) {
-            Ok(_) => self.app_url = app_url.trim_end_matches("/").to_string(),
+            Ok(_) => self.app_url = app_url.trim_end_matches('/').to_string(),
             Err(err) => error!("Invalid service url! Error: {:?}", err),
         };
         self
@@ -161,7 +161,7 @@ impl CasClient {
         &mut self,
         service_validate_prefix: &str,
     ) -> &mut Self {
-        if service_validate_prefix.len() != 0 {
+        if !service_validate_prefix.is_empty() {
             self.service_validate_prefix = service_validate_prefix.to_string();
             if self.service_validate_prefix.starts_with('/') {
                 self.service_validate_prefix =
@@ -198,7 +198,7 @@ impl CasClient {
     pub fn logout_url(&self) -> Option<String> {
         match Url::parse_with_params(
             &format!("{}{}", &self.cas_base_url(), &self.logout_prefix()),
-            &[("service", &format!("{}", self.app_url()))],
+            &[("service", &self.app_url().to_string())],
         ) {
             Ok(url) => Some(url.to_string()),
             Err(e) => {
@@ -264,13 +264,13 @@ impl CasClient {
                             "Error while requesting ticket validation! Error: {:?}",
                             err
                         );
-                        return None;
+                        None
                     }
                 }
             }
             None => {
                 error!("Error: service_ticket_validation_url returned None!");
-                return None;
+                None
             }
         }
     }
@@ -308,7 +308,7 @@ impl CasClient {
                                 if let Some(text) = child.text() {
                                     attributes
                                         .entry(attr.to_string())
-                                        .or_insert(text.to_string());
+                                        .or_insert_with(|| text.to_string());
                                 }
                             }
                         }
@@ -331,7 +331,7 @@ impl CasClient {
                     "service",
                     &format!("{}/{}/login", self.app_url(), self.login_service()),
                 ),
-                ("ticket", &format!("{}", ticket)),
+                ("ticket", &ticket.to_string()),
             ],
         ) {
             Ok(url) => Some(url.to_string()),
