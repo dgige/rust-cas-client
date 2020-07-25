@@ -211,7 +211,7 @@ impl CasClient {
     // ###########
     // BEGIN TODO: TEST
     // ###########
-    pub fn validate_service_ticket(&self, service_ticket: &str) -> Option<CasUser> {
+    pub fn validate_service_ticket(&self, service_ticket: &str) -> Result<Option<CasUser>, ()> {
         debug!("Validating service ticket: {:#?}", service_ticket);
 
         let resp = match self.fetch_cas_validation(service_ticket) {
@@ -221,15 +221,16 @@ impl CasClient {
             }
             None => {
                 error!("Error while fetching cas validation!");
-                return None;
+                return Ok(None);
             }
         };
         let (user, attributes) = self.parse_saml_response(resp);
 
-        match user.len() {
+        let result = match user.len() {
             0 => None,
             _ => Some(CasUser::new(&user, Some(attributes))),
-        }
+        };
+        Ok(result)
     }
     // ###########
     // END TODO

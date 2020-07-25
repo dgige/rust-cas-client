@@ -114,11 +114,11 @@ where
             }
             _ => {
                 info!("Ticket not found!");
-                None
+                Ok(None)
             }
         };
         let redirect_url = match user {
-            Some(cas_user) => {
+            Ok(Some(cas_user)) => {
                 if let Err(err) = session.set("cas_user", cas_user) {
                     error!("Error while saving cas_user in session! Error: {}", err);
                 };
@@ -132,7 +132,7 @@ where
                     }
                 }
             }
-            None => {
+            _ => {
                 let connection_info = req.connection_info();
                 let after_logged_in_url = format!("{}://{}{}", connection_info.scheme(), connection_info.host(), req.uri());
                 if let Err(err) = session.set("after_logged_in_url", after_logged_in_url ) {
