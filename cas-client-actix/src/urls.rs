@@ -13,7 +13,11 @@ pub async fn logout(req: HttpRequest, cas_client: web::Data<ActixCasClient>,
 ) -> Result<HttpResponse, Error> {
     let session = req.get_session();
     session.purge();
-    Ok(HttpResponse::build(http::StatusCode::TEMPORARY_REDIRECT)
-        .header(http::header::LOCATION, cas_client.logout_url())
-        .finish())
+    let logout_url = cas_client.logout_url();
+    match logout_url {
+        Some(logout_url) => Ok(HttpResponse::build(http::StatusCode::TEMPORARY_REDIRECT)
+            .header(http::header::LOCATION, logout_url)
+            .finish()),
+        _ => Ok(HttpResponse::build(http::StatusCode::NOT_FOUND).finish()),
+    }
 }

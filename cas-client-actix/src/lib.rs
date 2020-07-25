@@ -58,8 +58,8 @@ impl ActixCasClient {
         self.cas_client.login_url().unwrap()
     }
 
-    pub fn logout_url(&self) -> String {
-        self.cas_client.logout_url().unwrap()
+    pub fn logout_url(&self) -> Option<String> {
+        self.cas_client.logout_url()
     }
 
     pub fn app_url(&self) -> String {
@@ -301,13 +301,14 @@ mod cas_client_actix_test {
             Some(user) => user.username().to_owned(),
             None => "guest".to_owned(),
         };
+        let logout_url = cas_client.logout_url();
+        let link = match logout_url {
+            Some(logout_url) => format!("<a href='{}'>Logout</a>", logout_url),
+            None => String::from(""),
+        };
         Ok(HttpResponse::build(StatusCode::OK)
             .content_type("text/html; charset=utf-8")
-            .body(format!(
-                "Welcome <b>{}</b>!<br><a href='{}'>Logout</a>",
-                username,
-                cas_client.logout_url()
-            )))
+            .body(format!("Welcome <b>{}</b>!<br>{}", username, link,)))
     }
 
     fn get_server() -> TestServer {
