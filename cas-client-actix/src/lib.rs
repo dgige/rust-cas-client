@@ -318,7 +318,9 @@ mod cas_client_actix_test {
         // You could also construct your own client like this
         //  let http_client = Client::default();
         //  let req = http_client.get(srv.url(USER_PATH).as_str()).send();
-        //  let resp = req.get(url).send().await.unwrap()
+        //  let mut resp = req.get(url).send().await.unwrap()
+        //  let bytes = resp.body().await.unwrap();
+        //  println!("{:?}", bytes);
         // You'd do that, e.g. if you needed to get the
         // servers full URL.
         let srv = start(|| {
