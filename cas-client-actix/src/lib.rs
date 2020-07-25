@@ -206,12 +206,12 @@ where
 
     fn no_auth_response(&mut self, req: &ServiceRequest) -> Option<LocalBoxFuture<'static, HttpResponse>> {
         let resp = match self.cas_client.no_auth_behavior() {
-            NoAuthBehavior::AuthenticatedOr403 => self.authenticated_or_403(req),
-            NoAuthBehavior::AuthenticatedOr404 => self.authenticated_or_404(req),
-            NoAuthBehavior::Authenticate => self.authenticate(req),
-            NoAuthBehavior::ForceAuthentication => self.force_authentication(req),
+            NoAuthBehavior::AuthenticatedOr403 => self.authenticated_or_403(req).map(|r| ready(r)),
+            NoAuthBehavior::AuthenticatedOr404 => self.authenticated_or_404(req).map(|r| ready(r)),
+            NoAuthBehavior::Authenticate => self.authenticate(req).map(|r| ready(r)),
+            NoAuthBehavior::ForceAuthentication => self.force_authentication(req).map(|r| ready(r)),
         };
-        resp.map(|r| ready(r).boxed_local())
+        resp.map(|r| r.boxed_local())
     }
 
     fn do_call(
