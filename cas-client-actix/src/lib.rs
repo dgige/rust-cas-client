@@ -22,9 +22,20 @@ use futures::future::{ok, Either, Ready};
 
 use std::collections::HashMap;
 
+const CAS_USER_SESSION_KEY: &str = "cas_user";
+const AFTER_LOGGED_IN_URL_SESSION_KEY: &str = "after_logged_in_url";
+
 #[derive(Clone)]
 pub struct ActixCasClient {
     cas_client: CasClient,
+}
+
+fn ticket_for_query_string(
+    query_string: &str,
+) -> Result<Option<String>, actix_web::error::QueryPayloadError> {
+    let params = web::Query::<HashMap<String, String>>::from_query(query_string)?;
+    // Clone the inner string and return Ok of ticket value
+    Ok(params.get("ticket").map(|t| t.clone()))
 }
 
 impl ActixCasClient {
@@ -81,7 +92,7 @@ where
 {
     fn authenticate(&self, req: &mut ServiceRequest) -> Option<HttpResponse> {
         let session = req.get_session();
-        if let Ok(None) = session.get::<CasUser>("cas_user") {
+        if let Ok(None) = session.get::<CasUser>(CAS_USER_SESSION_KEY) {
             return self.authenticate_user(req);
         }
         None
@@ -101,66 +112,76 @@ where
 
     // private functions
     pub(self) fn authenticate_user(&self, req: &mut ServiceRequest) -> Option<HttpResponse> {
-        let session = req.get_session();
-        let query = String::from(req.query_string());
-        let params = web::Query::<HashMap<String, String>>::from_query(&query);
-        if let Err(_) = params {
-            return None;
-        };
-        let login_url = match self.cas_client.login_url() {
-            Some(login_url) => login_url,
-            None => {
-                return Some(HttpResponse::build(http::StatusCode::INTERNAL_SERVER_ERROR)
-                    .body("CAS login URL not configured"));
-            }
-        };
-        let user = match params.unwrap().get("ticket") {
-            Some(ticket) => {
-                info!("Ticket = {}!", ticket);
-                self.cas_client.validate_service_ticket(ticket)
-            }
-            _ => {
-                info!("Ticket not found!");
-                Ok(None)
-            }
-        };
-        let redirect_url = match user {
-            Ok(Some(cas_user)) => {
-                if let Err(err) = session.set("cas_user", cas_user) {
-                    error!("Error while saving cas_user in session! Error: {}", err);
-                };
-                match session.get::<String>("after_logged_in_url") {
-                    Ok(Some(return_path)) => {
-                        session.remove("after_logged_in_url");
-                        return_path
-                    },
-                    _ => {
-                        self.cas_client.app_url().to_string()
-                    }
-                }
-            }
-            _ => {
-                let connection_info = req.connection_info();
-                let after_logged_in_url = format!("{}://{}{}", connection_info.scheme(), connection_info.host(), req.uri());
-                if let Err(err) = session.set("after_logged_in_url", after_logged_in_url ) {
-                    error!("Error while saving after_logged_in_url in session! Error: {}", err);
-                };
-                login_url
-            }
-        };
-        Some(
-            HttpResponse::build(http::StatusCode::TEMPORARY_REDIRECT)
-                .header(http::header::LOCATION, redirect_url)
-                .finish(),
-        )
+        let ticket = ticket_for_query_string(req.query_string());
+        match ticket {
+            Ok(Some(ticket)) => self.handle_ticket(req, ticket),
+            _ => self.handle_needs_authentication(req),
+        }
     }
 
     pub(self) fn authenticated_or_error(&self, req: &mut ServiceRequest, status_code: http::StatusCode) -> Option<HttpResponse> {
         let session = req.get_session();
-        if let Ok(Some(_)) = session.get::<CasUser>("cas_user") {
+        if let Ok(Some(_)) = session.get::<CasUser>(CAS_USER_SESSION_KEY) {
             return Some(HttpResponse::build(status_code).finish())
         }
         None
+    }
+
+    fn handle_needs_authentication(&self, req: &mut ServiceRequest) -> Option<HttpResponse> {
+        self.set_after_logged_in_url(req);
+        let response = match self.cas_client.login_url() {
+            Some(login_url) => HttpResponse::build(http::StatusCode::TEMPORARY_REDIRECT)
+                .header(http::header::LOCATION, login_url)
+                .finish(),
+            None => HttpResponse::build(http::StatusCode::INTERNAL_SERVER_ERROR)
+                .body("CAS login URL not configured"),
+        };
+        Some(response)
+    }
+
+    fn handle_ticket(&self, req: &mut ServiceRequest, ticket: String) -> Option<HttpResponse> {
+        let user = self.cas_client.validate_service_ticket(&ticket);
+        match user {
+            Ok(Some(cas_user)) => self.handle_user(req, cas_user),
+            _ => self.handle_needs_authentication(req),
+        }
+    }
+
+    fn handle_user(&self, req: &mut ServiceRequest, cas_user: CasUser) -> Option<HttpResponse> {
+        let session = req.get_session();
+        if let Err(err) = session.set(CAS_USER_SESSION_KEY, cas_user) {
+            error!("Error while saving cas_user in session! Error: {}", err);
+        };
+        let return_path = session.get::<String>(AFTER_LOGGED_IN_URL_SESSION_KEY);
+        match return_path {
+            Ok(Some(return_path)) => {
+                session.remove(AFTER_LOGGED_IN_URL_SESSION_KEY);
+                Some(
+                    HttpResponse::build(http::StatusCode::TEMPORARY_REDIRECT)
+                        .header(http::header::LOCATION, return_path)
+                        .finish(),
+                )
+            }
+            _ => None,
+        }
+    }
+
+    pub(self) fn set_after_logged_in_url(&self, req: &mut ServiceRequest) {
+        let session = req.get_session();
+        let connection_info = req.connection_info();
+        let after_logged_in_url = format!(
+            "{}://{}{}",
+            connection_info.scheme(),
+            connection_info.host(),
+            req.uri()
+        );
+        let result = session.set(AFTER_LOGGED_IN_URL_SESSION_KEY, after_logged_in_url);
+        if let Err(err) = result {
+            error!(
+                "Error while saving after_logged_in_url in session! Error: {}",
+                err
+            );
+        };
     }
 }
 
@@ -174,7 +195,6 @@ where
     type Error = Error;
     type Future = Either<S::Future, Ready<Result<Self::Response, Self::Error>>>;
 
-    // fn poll_ready(&mut self) -> Poll<Result<(), Self::Error>> {
     fn poll_ready(&mut self, cx: &mut Context) -> Poll<Result<(), Self::Error>> {
         self.service.poll_ready(cx)
     }
