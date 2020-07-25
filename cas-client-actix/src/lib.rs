@@ -114,7 +114,7 @@ where
     S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
     S::Future: 'static,
 {
-    fn authenticate(&self, req: &mut ServiceRequest) -> Option<HttpResponse> {
+    fn authenticate(&self, req: &ServiceRequest) -> Option<HttpResponse> {
         let session = req.get_session();
         if let Ok(None) = session.get::<CasUser>(CAS_USER_SESSION_KEY) {
             return self.authenticate_user(req);
@@ -122,20 +122,20 @@ where
         None
     }
 
-    fn authenticated_or_403(&self, req: &mut ServiceRequest) -> Option<HttpResponse> {
+    fn authenticated_or_403(&self, req: &ServiceRequest) -> Option<HttpResponse> {
         self.authenticated_or_error(req, http::StatusCode::FORBIDDEN)
     }
 
-    fn authenticated_or_404(&self, req: &mut ServiceRequest) -> Option<HttpResponse> {
+    fn authenticated_or_404(&self, req: &ServiceRequest) -> Option<HttpResponse> {
         self.authenticated_or_error(req, http::StatusCode::NOT_FOUND)
     }
 
-    fn force_authentication(&self, req: &mut ServiceRequest) -> Option<HttpResponse> {
+    fn force_authentication(&self, req: &ServiceRequest) -> Option<HttpResponse> {
         self.authenticate_user(req)
     }
 
     // private functions
-    pub(self) fn authenticate_user(&self, req: &mut ServiceRequest) -> Option<HttpResponse> {
+    pub(self) fn authenticate_user(&self, req: &ServiceRequest) -> Option<HttpResponse> {
         let ticket = ticket_for_query_string(req.query_string());
         match ticket {
             Ok(Some(ticket)) => {
@@ -149,7 +149,7 @@ where
         }
     }
 
-    pub(self) fn authenticated_or_error(&self, req: &mut ServiceRequest, status_code: http::StatusCode) -> Option<HttpResponse> {
+    pub(self) fn authenticated_or_error(&self, req: &ServiceRequest, status_code: http::StatusCode) -> Option<HttpResponse> {
         let session = req.get_session();
         if let Ok(None) = session.get::<CasUser>(CAS_USER_SESSION_KEY) {
             return Some(HttpResponse::build(status_code).finish())
@@ -157,7 +157,7 @@ where
         None
     }
 
-    fn handle_needs_authentication(&self, req: &mut ServiceRequest) -> Option<HttpResponse> {
+    fn handle_needs_authentication(&self, req: &ServiceRequest) -> Option<HttpResponse> {
         self.set_after_logged_in_url(req);
         let login_url = match self.server_is_service {
             true => self
@@ -175,7 +175,7 @@ where
         Some(response)
     }
 
-    fn handle_ticket(&self, req: &mut ServiceRequest, ticket: String) -> Option<HttpResponse> {
+    fn handle_ticket(&self, req: &ServiceRequest, ticket: String) -> Option<HttpResponse> {
         let user = self.cas_client.validate_service_ticket(&ticket);
         match user {
             Ok(Some(cas_user)) => self.handle_user(req, cas_user),
@@ -183,7 +183,7 @@ where
         }
     }
 
-    fn handle_user(&self, req: &mut ServiceRequest, cas_user: CasUser) -> Option<HttpResponse> {
+    fn handle_user(&self, req: &ServiceRequest, cas_user: CasUser) -> Option<HttpResponse> {
         let session = req.get_session();
         if let Err(err) = session.set(CAS_USER_SESSION_KEY, cas_user) {
             error!("Error while saving cas_user in session! Error: {}", err);
@@ -202,7 +202,7 @@ where
         }
     }
 
-    fn no_auth_response(&mut self, req: &mut ServiceRequest) -> Option<HttpResponse> {
+    fn no_auth_response(&mut self, req: &ServiceRequest) -> Option<HttpResponse> {
         match self.cas_client.no_auth_behavior() {
             NoAuthBehavior::AuthenticatedOr403 => self.authenticated_or_403(req),
             NoAuthBehavior::AuthenticatedOr404 => self.authenticated_or_404(req),
@@ -213,15 +213,16 @@ where
 
     fn do_call(
         &mut self,
-        mut req: ServiceRequest,
+        req: ServiceRequest,
     ) -> Either<S::Future, Ready<Result<ServiceResponse<B>, Error>>> {
         debug!("*** BEGIN CAS CLIENT MIDDLEWARE ***");
         debug!("*** CAS CLIENT MIDDLEWARE: CURRENT URL : {:?} ***", url_for_request(&req));
-        let resp = self.no_auth_response(&mut req);
+        let resp = self.no_auth_response(&req);
         match resp {
             Some(resp) => {
                 debug!("*** CAS CLIENT MIDDLEWARE RESPONSE: INTERCEPT REQUEST ***");
-                Either::Right(ok(req.into_response(resp.into_body())))
+                let the_resp = req.into_response(resp.into_body());
+                Either::Right(ok(the_resp))
             }
             None => {
                 debug!("*** CAS CLIENT MIDDLEWARE RESPONSE: CONTINUE ***");
@@ -230,7 +231,7 @@ where
         }
     }
 
-    pub(self) fn set_after_logged_in_url(&self, req: &mut ServiceRequest) {
+    pub(self) fn set_after_logged_in_url(&self, req: &ServiceRequest) {
         let session = req.get_session();
         let after_logged_in_url = url_for_request(req);
         let result = session.set(AFTER_LOGGED_IN_URL_SESSION_KEY, after_logged_in_url);
