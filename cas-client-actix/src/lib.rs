@@ -18,7 +18,7 @@ use actix_session::UserSession;
 use actix_web::dev::{ServiceRequest, ServiceResponse};
 use actix_web::web;
 use actix_web::{http, Error, HttpResponse};
-use futures::future::{ok, Either, FutureExt, LocalBoxFuture, Ready};
+use futures::future::{ok, ready, Either, FutureExt, LocalBoxFuture, Ready};
 
 use std::collections::HashMap;
 
@@ -204,13 +204,14 @@ where
         }
     }
 
-    fn no_auth_response(&mut self, req: &ServiceRequest) -> Option<HttpResponse> {
-        match self.cas_client.no_auth_behavior() {
+    fn no_auth_response(&mut self, req: &ServiceRequest) -> Option<LocalBoxFuture<'static, HttpResponse>> {
+        let resp = match self.cas_client.no_auth_behavior() {
             NoAuthBehavior::AuthenticatedOr403 => self.authenticated_or_403(req),
             NoAuthBehavior::AuthenticatedOr404 => self.authenticated_or_404(req),
             NoAuthBehavior::Authenticate => self.authenticate(req),
             NoAuthBehavior::ForceAuthentication => self.force_authentication(req),
-        }
+        };
+        resp.map(|r| ready(r).boxed_local())
     }
 
     fn do_call(
@@ -223,9 +224,8 @@ where
         match resp {
             Some(resp) => {
                 debug!("*** CAS CLIENT MIDDLEWARE RESPONSE: INTERCEPT REQUEST ***");
-                let the_resp = req.into_response(resp.into_body());
-                let the_fut = async move { Ok(the_resp) }.boxed_local();
-                Either::Right(the_fut)
+                let service_resp = resp.map(|r| Ok(req.into_response(r.into_body())));
+                Either::Right(service_resp.boxed_local())
             }
             None => {
                 debug!("*** CAS CLIENT MIDDLEWARE RESPONSE: CONTINUE ***");
