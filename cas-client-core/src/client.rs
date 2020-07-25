@@ -180,13 +180,11 @@ impl CasClient {
     // Public functions
     // ################################################################################
     pub fn login_url(&self) -> Option<String> {
-        match Url::parse_with_params(
-            &format!("{}{}", &self.cas_base_url(), &self.login_prefix()),
-            &[(
-                "service",
-                &format!("{}/{}/login", self.app_url(), self.login_service()),
-            )],
-        ) {
+        let base_url = format!("{}{}", &self.cas_base_url(), &self.login_prefix());
+        let service_url = format!("{}/{}/login", self.app_url(), self.login_service());
+        let params = [("service", &service_url)];
+        let the_url = Url::parse_with_params(&base_url, &params);
+        match the_url {
             Ok(url) => Some(url.to_string()),
             Err(e) => {
                 error!("Error while parsing login url. Error: {}", e);
@@ -196,10 +194,10 @@ impl CasClient {
     }
 
     pub fn logout_url(&self) -> Option<String> {
-        match Url::parse_with_params(
-            &format!("{}{}", &self.cas_base_url(), &self.logout_prefix()),
-            &[("service", &self.app_url().to_string())],
-        ) {
+        let base_url = format!("{}{}", &self.cas_base_url(), &self.logout_prefix());
+        let params = [("service", &format!("{}", self.app_url()))];
+        let the_url = Url::parse_with_params(&base_url, &params);
+        match the_url {
             Ok(url) => Some(url.to_string()),
             Err(e) => {
                 error!("Error while parsing logout url. Error: {}", e);
@@ -321,20 +319,15 @@ impl CasClient {
     }
 
     pub(self) fn service_validate_url(&self, ticket: &str) -> Option<String> {
-        match Url::parse_with_params(
-            &format!(
-                "{}{}",
-                &self.cas_base_url(),
-                &self.service_validate_prefix()
-            ),
-            &[
-                (
-                    "service",
-                    &format!("{}/{}/login", self.app_url(), self.login_service()),
-                ),
-                ("ticket", &ticket.to_string()),
-            ],
-        ) {
+        let base_url = format!(
+            "{}{}",
+            &self.cas_base_url(),
+            &self.service_validate_prefix()
+        );
+        let service_url = format!("{}/{}/login", self.app_url(), self.login_service());
+        let params = [("service", &service_url), ("ticket", &ticket.to_owned())];
+        let the_url = Url::parse_with_params(&base_url, &params);
+        match the_url {
             Ok(url) => Some(url.to_string()),
             Err(e) => {
                 error!("Error while parsing service validate url. Error: {}", e);
