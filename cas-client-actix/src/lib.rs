@@ -219,3 +219,76 @@ where
         }
     }
 }
+
+#[cfg(test)]
+mod cas_client_actix_test {
+    use super::*;
+    use actix_http::httpmessage::HttpMessage;
+    use actix_session::CookieSession;
+    use actix_web::http::StatusCode;
+    use actix_web::{
+        get, middleware,
+        test::{start, TestServer},
+        App, HttpRequest,
+    };
+
+    const SESSION_COOKIE_NAME: &str = "foo";
+
+    #[get("/")]
+    async fn guest(_req: HttpRequest) -> Result<HttpResponse, Error> {
+        Ok(HttpResponse::build(StatusCode::OK)
+            .content_type("text/html; charset=utf-8")
+            .body("Welcome <b>Guest</b>!<br><a href='/user'>Login</a>"))
+    }
+
+    #[get("/user")]
+    async fn user(
+        req: HttpRequest,
+        cas_client: web::Data<ActixCasClient>,
+    ) -> Result<HttpResponse, Error> {
+        let session = req.get_session();
+        let user = session.get::<CasUser>("cas_user").unwrap().unwrap();
+        Ok(HttpResponse::build(StatusCode::OK)
+            .content_type("text/html; charset=utf-8")
+            .body(format!(
+                "Welcome <b>{}</b>!<br><a href='{}'>Logout</a>",
+                user.username(),
+                cas_client.logout_url()
+            )))
+    }
+
+    fn get_server() -> TestServer {
+        let srv = start(|| {
+            let cas = CasClient::new("http://fake.cas");
+            let cookie_store = CookieSession::signed(&[0; 32])
+                .secure(false)
+                .name(SESSION_COOKIE_NAME);
+            App::new()
+                .wrap(cookie_store)
+                .wrap(middleware::Logger::default())
+                .data(cas.clone())
+                .service(guest)
+                .service(user)
+                .route("/login", web::get().to(urls::login))
+                .route("/logout", web::get().to(urls::logout))
+        });
+        srv
+    }
+
+    #[actix_rt::test]
+    async fn test_cookie_is_set() {
+        let srv = get_server();
+        let req_1 = srv.get("/").send();
+        let resp_1 = req_1.await.unwrap();
+        let cookie_1 = resp_1
+            .cookies()
+            .unwrap()
+            .clone()
+            .into_iter()
+            .find(|c| c.name() == SESSION_COOKIE_NAME);
+        if let None = cookie_1 {
+            let msg = ["Expected to find cookie with name ", SESSION_COOKIE_NAME].join(" ");
+            panic!(msg);
+        }
+    }
+}
