@@ -107,6 +107,13 @@ where
         if let Err(_) = params {
             return None;
         };
+        let login_url = match self.cas_client.login_url() {
+            Some(login_url) => login_url,
+            None => {
+                return Some(HttpResponse::build(http::StatusCode::INTERNAL_SERVER_ERROR)
+                    .body("CAS login URL not configured"));
+            }
+        };
         let user = match params.unwrap().get("ticket") {
             Some(ticket) => {
                 info!("Ticket = {}!", ticket);
@@ -138,7 +145,7 @@ where
                 if let Err(err) = session.set("after_logged_in_url", after_logged_in_url ) {
                     error!("Error while saving after_logged_in_url in session! Error: {}", err);
                 };
-                self.cas_client.login_url().unwrap()
+                login_url
             }
         };
         Some(
