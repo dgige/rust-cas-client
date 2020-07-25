@@ -18,7 +18,7 @@ use actix_session::UserSession;
 use actix_web::dev::{ServiceRequest, ServiceResponse};
 use actix_web::web;
 use actix_web::{http, Error, HttpResponse};
-use futures::future::{ok, Either, Ready};
+use futures::future::{ok, Either, FutureExt, LocalBoxFuture, Ready};
 
 use std::collections::HashMap;
 
@@ -71,6 +71,7 @@ impl<S, B> Transform<S> for ActixCasClient
 where
     S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
     S::Future: 'static,
+    B: 'static,
 {
     type Request = ServiceRequest;
     type Response = ServiceResponse<B>;
@@ -113,6 +114,7 @@ impl<S, B> ActixCasClientMiddleware<S>
 where
     S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
     S::Future: 'static,
+    B: 'static,
 {
     fn authenticate(&self, req: &ServiceRequest) -> Option<HttpResponse> {
         let session = req.get_session();
@@ -214,7 +216,7 @@ where
     fn do_call(
         &mut self,
         req: ServiceRequest,
-    ) -> Either<S::Future, Ready<Result<ServiceResponse<B>, Error>>> {
+    ) -> Either<S::Future, LocalBoxFuture<'static, Result<ServiceResponse<B>, Error>>> {
         debug!("*** BEGIN CAS CLIENT MIDDLEWARE ***");
         debug!("*** CAS CLIENT MIDDLEWARE: CURRENT URL : {:?} ***", url_for_request(&req));
         let resp = self.no_auth_response(&req);
@@ -222,7 +224,8 @@ where
             Some(resp) => {
                 debug!("*** CAS CLIENT MIDDLEWARE RESPONSE: INTERCEPT REQUEST ***");
                 let the_resp = req.into_response(resp.into_body());
-                Either::Right(ok(the_resp))
+                let the_fut = async move { Ok(the_resp) }.boxed_local();
+                Either::Right(the_fut)
             }
             None => {
                 debug!("*** CAS CLIENT MIDDLEWARE RESPONSE: CONTINUE ***");
@@ -248,11 +251,16 @@ impl<S, B> Service for ActixCasClientMiddleware<S>
 where
     S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
     S::Future: 'static,
+    B: 'static,
 {
     type Request = ServiceRequest;
     type Response = ServiceResponse<B>;
     type Error = Error;
-    type Future = Either<S::Future, Ready<Result<Self::Response, Self::Error>>>;
+    type Future = Either<
+        S::Future,
+        // Ready<Result<Self::Response, Self::Error>>
+        LocalBoxFuture<'static, Result<Self::Response, Self::Error>>,
+    >;
 
     fn poll_ready(&mut self, cx: &mut Context) -> Poll<Result<(), Self::Error>> {
         self.service.poll_ready(cx)
