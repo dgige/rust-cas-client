@@ -26,7 +26,12 @@ async fn user(
     req: HttpRequest,
 ) -> Result<HttpResponse, Error> {
     let session = req.get_session();
-    let user = session.get::<CasUser>("cas_user").unwrap().unwrap();
+    let user_session = session.get::<CasUser>("cas_user");
+    let user = user_session.unwrap_or(None);
+    let username = match user {
+        Some(user) => user.username().to_owned(),
+        None => "guest".to_owned(),
+    };
     Ok(HttpResponse::build(StatusCode::OK)
         .content_type("text/html; charset=utf-8")
         .body(format!(
@@ -34,7 +39,7 @@ async fn user(
             <br>
             <br>
             <a href='/auth/cas/logout'>Logout</a>",
-            user.username(),
+            username,
         )))
 }
 
