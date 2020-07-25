@@ -202,6 +202,34 @@ where
         }
     }
 
+    fn no_auth_response(&mut self, req: &mut ServiceRequest) -> Option<HttpResponse> {
+        match self.cas_client.no_auth_behavior() {
+            NoAuthBehavior::AuthenticatedOr403 => self.authenticated_or_403(req),
+            NoAuthBehavior::AuthenticatedOr404 => self.authenticated_or_404(req),
+            NoAuthBehavior::Authenticate => self.authenticate(req),
+            NoAuthBehavior::ForceAuthentication => self.force_authentication(req),
+        }
+    }
+
+    fn do_call(
+        &mut self,
+        mut req: ServiceRequest,
+    ) -> Either<S::Future, Ready<Result<ServiceResponse<B>, Error>>> {
+        debug!("*** BEGIN CAS CLIENT MIDDLEWARE ***");
+        debug!("*** CAS CLIENT MIDDLEWARE: CURRENT URL : {:?} ***", url_for_request(&req));
+        let resp = self.no_auth_response(&mut req);
+        match resp {
+            Some(resp) => {
+                debug!("*** CAS CLIENT MIDDLEWARE RESPONSE: INTERCEPT REQUEST ***");
+                Either::Right(ok(req.into_response(resp.into_body())))
+            }
+            None => {
+                debug!("*** CAS CLIENT MIDDLEWARE RESPONSE: CONTINUE ***");
+                Either::Left(self.service.call(req))
+            }
+        }
+    }
+
     pub(self) fn set_after_logged_in_url(&self, req: &mut ServiceRequest) {
         let session = req.get_session();
         let after_logged_in_url = url_for_request(req);
@@ -229,24 +257,8 @@ where
         self.service.poll_ready(cx)
     }
 
-    fn call(&mut self, mut req: ServiceRequest) -> Self::Future {
-        debug!("*** BEGIN CAS CLIENT MIDDLEWARE ***");
-        let resp = match self.cas_client.no_auth_behavior() {
-            NoAuthBehavior::AuthenticatedOr403 => self.authenticated_or_403(&mut req),
-            NoAuthBehavior::AuthenticatedOr404 => self.authenticated_or_404(&mut req),
-            NoAuthBehavior::Authenticate => self.authenticate(&mut req),
-            NoAuthBehavior::ForceAuthentication => self.force_authentication(&mut req),
-        };
-        match resp {
-            Some(resp) => {
-                debug!("*** CAS CLIENT MIDDLEWARE RESPONSE: INTERCEPT REQUEST ***");
-                Either::Right(ok(req.into_response(resp.into_body())))
-            }
-            None => {
-                debug!("*** CAS CLIENT MIDDLEWARE RESPONSE: CONTINUE ***");
-                Either::Left(self.service.call(req))
-            }
-        }
+    fn call(&mut self, req: ServiceRequest) -> Self::Future {
+        self.do_call(req)
     }
 }
 
