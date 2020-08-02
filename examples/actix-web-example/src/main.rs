@@ -22,9 +22,7 @@ async fn guest(_req: HttpRequest) -> Result<HttpResponse, Error> {
         "))
 }
 
-async fn user(
-    req: HttpRequest,
-) -> Result<HttpResponse, Error> {
+async fn user(req: HttpRequest) -> Result<HttpResponse, Error> {
     let session = req.get_session();
     let user_session = session.get::<CasUser>("cas_user");
     let user = user_session.unwrap_or(None);

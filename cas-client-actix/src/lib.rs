@@ -13,19 +13,21 @@ use cas_client_core::CasUser;
 use cas_client_core::{CasClient, NoAuthBehavior};
 use std::task::{Context, Poll};
 
+use actix_http::error::ErrorInternalServerError;
 use actix_service::{Service, Transform};
 use actix_session::{Session, UserSession};
+use actix_web::dev::Payload;
 use actix_web::dev::{ServiceRequest, ServiceResponse};
 use actix_web::web;
-use actix_web::{http, Error, HttpResponse};
-use futures::future::{ok, ready, Either, FutureExt, LocalBoxFuture, Ready};
+use actix_web::{http, Error, FromRequest, HttpRequest, HttpResponse};
+use futures::future::{err, ok, ready, Either, FutureExt, LocalBoxFuture, Ready};
 
 use std::collections::HashMap;
 
 const CAS_USER_SESSION_KEY: &str = "cas_user";
 const AFTER_LOGGED_IN_URL_SESSION_KEY: &str = "after_logged_in_url";
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct ActixCasClient {
     cas_client: CasClient,
     // Indicates that the server's URL should be
@@ -38,7 +40,7 @@ fn ticket_for_query_string(
 ) -> Result<Option<String>, actix_web::error::QueryPayloadError> {
     let params = web::Query::<HashMap<String, String>>::from_query(query_string)?;
     // Clone the inner string and return Ok of ticket value
-    Ok(params.get("ticket").map(|t| t.clone()))
+    Ok(params.get("ticket").cloned())
 }
 
 struct RequestCasInfo {
@@ -87,6 +89,33 @@ impl ActixCasClient {
 
     pub fn app_url(&self) -> String {
         self.cas_client.app_url().to_string()
+    }
+}
+
+/// Enable ActixCasClient to be used in Actix "extractors".
+///
+impl FromRequest for ActixCasClient {
+    type Config = ();
+    type Error = Error;
+    type Future = Ready<Result<Self, Error>>;
+
+    /// Extract the ActixCasClient from the request data. Typically, this
+    /// is added using the `.data` method of actix_web::App. e.g.
+    /// `App.new()..wrap(cookie_store).data(your_actix_cas_client.clone())`
+    fn from_request(req: &HttpRequest, _payload: &mut Payload) -> Self::Future {
+        match req.app_data::<ActixCasClient>() {
+            Some(client) => ok(client.clone()),
+            _ => {
+                log::debug!(
+                    "Failed find ActixCasClient. \
+                     Request path: {:?}",
+                    req.path()
+                );
+                err(ErrorInternalServerError(
+                    "App data is not configured with ActixCasClient. See documentation.",
+                ))
+            }
+        }
     }
 }
 
@@ -141,8 +170,8 @@ where
 {
     fn authenticate(&self, req_info: &RequestCasInfo) -> Option<HttpResponse> {
         match req_info.cas_user {
-            Ok(None) => self.authenticate_user(req_info),
-            _ => None,
+            Ok(None) => self.authenticate_user(req_info), // No user or error
+            _ => None, // User is logged in
         }
     }
 
@@ -378,23 +407,38 @@ mod cas_client_actix_test {
                 .wrap(cookie_store)
                 .wrap(middleware::Logger::default())
                 .data(cas_with_auth.clone())
+                // User should be able to see this route without
+                // authentication.
                 .route("/", web::get().to(guest))
+                // User should not be able to see this
+                // without authentication. They should be redirected
+                // to the CAS service and ultimately back here.
                 .service(
                     web::scope(USER_PATH)
                         .wrap(cas_with_auth.clone())
                         .route("", web::get().to(user)),
                 )
+                // User should not be able to see this
+                // without authentication. They should get a 403.
                 .service(
                     web::scope(PROTECTED_PATH_403)
                         .wrap(cas_with_403.clone())
                         .route("", web::get().to(user)),
                 )
+                // User should not be able to see this
+                // without authentication. They should get a 404.
                 .service(
                     web::scope(PROTECTED_PATH_404)
                         .wrap(cas_with_404.clone())
                         .route("", web::get().to(user)),
                 )
+                // User goes here to authenticate. If there is no
+                // ticket, they're redirected to the CAS service.
+                // If there is a ticket, we validate the ticket
+                // and then redirect them to their "after logged in" URL.
                 .route(LOGIN_PATH, web::get().to(urls::login))
+                // Authentication information in the session is
+                // cleared after visiting this route.
                 .route(LOGOUT_PATH, web::get().to(urls::logout))
         });
         srv
@@ -447,5 +491,16 @@ mod cas_client_actix_test {
             let msg = ["Expected to find cookie with name ", SESSION_COOKIE_NAME].join(" ");
             panic!(msg);
         }
+    }
+
+    // Using the `urls::login` handler without configuring an
+    // ActixCasClient should cause the handler to return 500.
+    #[actix_rt::test]
+    async fn test_unconfigured_returns_error() {
+        let srv = start(|| App::new().route(LOGIN_PATH, web::get().to(urls::login)));
+        let req = srv.get(LOGIN_PATH).send();
+        let resp = req.await.unwrap();
+        println!("{:?}", resp);
+        assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
     }
 }
