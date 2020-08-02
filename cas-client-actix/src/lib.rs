@@ -101,7 +101,7 @@ impl FromRequest for ActixCasClient {
 
     /// Extract the ActixCasClient from the request data. Typically, this
     /// is added using the `.data` method of actix_web::App. e.g.
-    /// `App.new()..wrap(cookie_store).data(your_actix_cas_client.clone())`
+    /// `App.new()..wrap(cookie_store).app_data(your_actix_cas_client.clone())`
     fn from_request(req: &HttpRequest, _payload: &mut Payload) -> Self::Future {
         match req.app_data::<ActixCasClient>() {
             Some(client) => ok(client.clone()),
@@ -497,10 +497,42 @@ mod cas_client_actix_test {
     // ActixCasClient should cause the handler to return 500.
     #[actix_rt::test]
     async fn test_unconfigured_returns_error() {
-        let srv = start(|| App::new().route(LOGIN_PATH, web::get().to(urls::login)));
+        let srv = start(|| {
+            App::new()
+                .route(LOGIN_PATH, web::get().to(urls::login))
+                .route(LOGOUT_PATH, web::get().to(urls::logout))
+        });
         let req = srv.get(LOGIN_PATH).send();
         let resp = req.await.unwrap();
         println!("{:?}", resp);
         assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
+        let req = srv.get(LOGOUT_PATH).send();
+        let resp = req.await.unwrap();
+        println!("{:?}", resp);
+        assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    }
+
+    #[actix_rt::test]
+    async fn test_extractor_does_not_return_error() {
+
+        let srv = start(|| {
+            let cas_with_auth = get_cas_client("auth/cas", CAS_URL, NoAuthBehavior::Authenticate);
+            let cookie_store = CookieSession::signed(&[0; 32])
+                    .secure(false)
+                    .name(SESSION_COOKIE_NAME);
+            App::new()
+                .wrap(cookie_store)
+                .app_data(cas_with_auth.clone())
+                .route(LOGIN_PATH, web::get().to(urls::login))
+                .route(LOGOUT_PATH, web::get().to(urls::logout))
+        } );
+        let req = srv.get(LOGIN_PATH).send();
+        let resp = req.await.unwrap();
+        println!("{:?}", resp);
+        assert_ne!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
+        let req = srv.get(LOGOUT_PATH).send();
+        let resp = req.await.unwrap();
+        println!("{:?}", resp);
+        assert_ne!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
     }
 }

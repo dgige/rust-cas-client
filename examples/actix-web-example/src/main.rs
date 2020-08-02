@@ -17,6 +17,7 @@ async fn guest(_req: HttpRequest) -> Result<HttpResponse, Error> {
         .body("
             Welcome <b>Guest</b>!
             <br>
+            <br><a href='/auth/cas/login'>Login (to '/auth/cas/login')</a>
             <br><a href='/user'>Login (to '/user')</a>
             <br><a href='/user/welcome'>Login (to '/user/welcome')</a>
         "))
@@ -52,7 +53,7 @@ async fn main() -> std::io::Result<()> {
         App::new()
             .wrap(Logger::default())
             .wrap(CookieSession::signed(&[0; 32]).secure(false))
-            .data(cas_client.clone())
+            .app_data(cas_client.clone())
             .service(guest)
             .service(
                 web::scope("/user")
@@ -61,17 +62,17 @@ async fn main() -> std::io::Result<()> {
                     .route("/welcome", web::get().to(user)),
             )
             .service(
-                web::scope(&format!("{}/logout", auth_service))
-                    .route("", web::get().to(cas_client::actix::urls::logout))
+                web::resource(&format!("{}/logout", auth_service))
+                    .route(web::get().to(cas_client::actix::urls::logout))
             )
             .service(
-                web::scope(auth_service)
+                web::resource(&format!("{}/login", auth_service))
                     .wrap(cas_client.clone())
-                    .route("/login", web::get().to(cas_client::actix::urls::login)),
+                    .route(web::get().to(cas_client::actix::urls::login))
             )
-    })
-    .bind("localhost:8080")?
-    .run()
+        })
+        .bind("localhost:8080")?
+        .run()
     .await
 }
 
