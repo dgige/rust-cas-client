@@ -184,7 +184,7 @@ impl CasClient {
         self.login_url_for_service(&service_url)
     }
 
-    pub fn login_url_for_service(&self, service_url: &String) -> Option<String> {
+    pub fn login_url_for_service(&self, service_url: &str) -> Option<String> {
         let base_url = format!("{}{}", &self.cas_base_url(), &self.login_prefix());
         let params = [("service", &service_url)];
         let the_url = Url::parse_with_params(&base_url, &params);
@@ -199,7 +199,7 @@ impl CasClient {
 
     pub fn logout_url(&self) -> Option<String> {
         let base_url = format!("{}{}", &self.cas_base_url(), &self.logout_prefix());
-        let params = [("service", &format!("{}", self.app_url()))];
+        let params = [("service", self.app_url().to_string())];
         let the_url = Url::parse_with_params(&base_url, &params);
         match the_url {
             Ok(url) => Some(url.to_string()),
