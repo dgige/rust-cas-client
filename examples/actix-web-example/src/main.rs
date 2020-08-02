@@ -61,15 +61,7 @@ async fn main() -> std::io::Result<()> {
                     .route("", web::get().to(user))
                     .route("/welcome", web::get().to(user)),
             )
-            .service(
-                web::resource(&format!("{}/logout", auth_service))
-                    .route(web::get().to(cas_client::actix::urls::logout))
-            )
-            .service(
-                web::resource(&format!("{}/login", auth_service))
-                    .wrap(cas_client.clone())
-                    .route(web::get().to(cas_client::actix::urls::login))
-            )
+            .configure(|cfg| { cas_client::actix::urls::register(cfg, auth_service, &cas_client) })
         })
         .bind("localhost:8080")?
         .run()

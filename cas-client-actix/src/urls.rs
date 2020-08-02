@@ -21,3 +21,17 @@ pub async fn logout(req: HttpRequest, cas_client: ActixCasClient) -> Result<Http
         _ => Ok(HttpResponse::build(http::StatusCode::NOT_FOUND).finish()),
     }
 }
+
+pub fn register(cfg: &mut actix_web::web::ServiceConfig, auth_service: &str, cas_client: &ActixCasClient) {
+    use actix_web::web;
+
+    cfg.service(
+        web::resource(&format!("{}/logout", auth_service))
+            .route(web::get().to(crate::urls::logout))
+    );
+    cfg.service(
+        web::resource(&format!("{}/login", auth_service))
+            .wrap(cas_client.clone())
+            .route(web::get().to(crate::urls::login))
+    );
+}
