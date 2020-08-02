@@ -14,7 +14,7 @@ use cas_client_core::{CasClient, NoAuthBehavior};
 use std::task::{Context, Poll};
 
 use actix_service::{Service, Transform};
-use actix_session::UserSession;
+use actix_session::{Session, UserSession};
 use actix_web::dev::{ServiceRequest, ServiceResponse};
 use actix_web::web;
 use actix_web::{http, Error, HttpResponse};
@@ -39,6 +39,29 @@ fn ticket_for_query_string(
     let params = web::Query::<HashMap<String, String>>::from_query(query_string)?;
     // Clone the inner string and return Ok of ticket value
     Ok(params.get("ticket").map(|t| t.clone()))
+}
+
+struct RequestCasInfo {
+    session: Session,
+    ticket: Result<Option<String>, actix_web::error::QueryPayloadError>,
+    cas_user: Result<Option<CasUser>, Error>,
+    url: String,
+    after_logged_in_url: Result<Option<String>, Error>,
+}
+
+impl RequestCasInfo {
+    fn from_service_request(req: &ServiceRequest) -> Self {
+        let session = req.get_session();
+        let cas_user = session.get::<CasUser>("cas_user");
+        let after_logged_in_url = session.get::<String>(AFTER_LOGGED_IN_URL_SESSION_KEY);
+        RequestCasInfo {
+            session,
+            ticket: ticket_for_query_string(req.query_string()),
+            cas_user,
+            url: url_for_request(req),
+            after_logged_in_url,
+        }
+    }
 }
 
 impl ActixCasClient {
@@ -116,55 +139,54 @@ where
     S::Future: 'static,
     B: 'static,
 {
-    fn authenticate(&self, req: &ServiceRequest) -> Option<HttpResponse> {
-        let session = req.get_session();
-        if let Ok(None) = session.get::<CasUser>(CAS_USER_SESSION_KEY) {
-            return self.authenticate_user(req);
+    fn authenticate(&self, req_info: &RequestCasInfo) -> Option<HttpResponse> {
+        match req_info.cas_user {
+            Ok(None) => self.authenticate_user(req_info),
+            _ => None,
         }
-        None
     }
 
-    fn authenticated_or_403(&self, req: &ServiceRequest) -> Option<HttpResponse> {
-        self.authenticated_or_error(req, http::StatusCode::FORBIDDEN)
+    fn authenticated_or_403(&self, req_info: &RequestCasInfo) -> Option<HttpResponse> {
+        self.authenticated_or_error(req_info, http::StatusCode::FORBIDDEN)
     }
 
-    fn authenticated_or_404(&self, req: &ServiceRequest) -> Option<HttpResponse> {
-        self.authenticated_or_error(req, http::StatusCode::NOT_FOUND)
+    fn authenticated_or_404(&self, req_info: &RequestCasInfo) -> Option<HttpResponse> {
+        self.authenticated_or_error(req_info, http::StatusCode::NOT_FOUND)
     }
 
-    fn force_authentication(&self, req: &ServiceRequest) -> Option<HttpResponse> {
-        self.authenticate_user(req)
+    fn force_authentication(&self, req_info: &RequestCasInfo) -> Option<HttpResponse> {
+        self.authenticate_user(req_info)
     }
 
     // private functions
-    pub(self) fn authenticate_user(&self, req: &ServiceRequest) -> Option<HttpResponse> {
-        let ticket = ticket_for_query_string(req.query_string());
-        match ticket {
+    pub(self) fn authenticate_user(&self, req_info: &RequestCasInfo) -> Option<HttpResponse> {
+        match &req_info.ticket {
             Ok(Some(ticket)) => {
                 info!("Ticket = {}!", ticket);
-                self.handle_ticket(req, ticket)
+                self.handle_ticket(req_info, ticket.to_string())
             }
             _ => {
                 info!("Ticket not found!");
-                self.handle_needs_authentication(req)
+                self.handle_needs_authentication(req_info)
             }
         }
     }
 
-    pub(self) fn authenticated_or_error(&self, req: &ServiceRequest, status_code: http::StatusCode) -> Option<HttpResponse> {
-        let session = req.get_session();
-        if let Ok(None) = session.get::<CasUser>(CAS_USER_SESSION_KEY) {
+    pub(self) fn authenticated_or_error(&self, req_info: &RequestCasInfo, status_code: http::StatusCode) -> Option<HttpResponse> {
+        if let Ok(None) = &req_info.cas_user {
             return Some(HttpResponse::build(status_code).finish())
         }
         None
     }
 
-    fn handle_needs_authentication(&self, req: &ServiceRequest) -> Option<HttpResponse> {
-        self.set_after_logged_in_url(req);
+    fn handle_needs_authentication(&self, req_info: &RequestCasInfo) -> Option<HttpResponse> {
+        let url = req_info.url.clone();
+        self.set_after_logged_in_url(req_info);
         let login_url = match self.server_is_service {
             true => self
                 .cas_client
-                .login_url_for_service(&host_scheme_for_request(req)),
+                // .login_url_for_service(&host_scheme_for_request(req)),
+                .login_url_for_service(&url),
             false => self.cas_client.login_url(),
         };
         let response = match login_url {
@@ -177,26 +199,24 @@ where
         Some(response)
     }
 
-    fn handle_ticket(&self, req: &ServiceRequest, ticket: String) -> Option<HttpResponse> {
+    fn handle_ticket(&self, req_info: &RequestCasInfo, ticket: String) -> Option<HttpResponse> {
         let user = self.cas_client.validate_service_ticket(&ticket);
         match user {
-            Ok(Some(cas_user)) => self.handle_user(req, cas_user),
-            _ => self.handle_needs_authentication(req),
+            Ok(Some(cas_user)) => self.handle_user(req_info, cas_user),
+            _ => self.handle_needs_authentication(req_info),
         }
     }
 
-    fn handle_user(&self, req: &ServiceRequest, cas_user: CasUser) -> Option<HttpResponse> {
-        let session = req.get_session();
-        if let Err(err) = session.set(CAS_USER_SESSION_KEY, cas_user) {
+    fn handle_user(&self, req_info: &RequestCasInfo, cas_user: CasUser) -> Option<HttpResponse> {
+        if let Err(err) = req_info.session.set(CAS_USER_SESSION_KEY, cas_user) {
             error!("Error while saving cas_user in session! Error: {}", err);
         };
-        let return_path = session.get::<String>(AFTER_LOGGED_IN_URL_SESSION_KEY);
-        match return_path {
+        match &req_info.after_logged_in_url {
             Ok(Some(return_path)) => {
-                session.remove(AFTER_LOGGED_IN_URL_SESSION_KEY);
+                req_info.session.remove(AFTER_LOGGED_IN_URL_SESSION_KEY);
                 Some(
                     HttpResponse::build(http::StatusCode::TEMPORARY_REDIRECT)
-                        .header(http::header::LOCATION, return_path)
+                        .header(http::header::LOCATION, return_path.clone())
                         .finish(),
                 )
             }
@@ -204,14 +224,14 @@ where
         }
     }
 
-    fn no_auth_response(&mut self, req: &ServiceRequest) -> Option<LocalBoxFuture<'static, HttpResponse>> {
+    fn no_auth_response(&mut self, req_info: &RequestCasInfo) -> Option<LocalBoxFuture<'static, HttpResponse>> {
         let resp = match self.cas_client.no_auth_behavior() {
-            NoAuthBehavior::AuthenticatedOr403 => self.authenticated_or_403(req).map(|r| ready(r)),
-            NoAuthBehavior::AuthenticatedOr404 => self.authenticated_or_404(req).map(|r| ready(r)),
-            NoAuthBehavior::Authenticate => self.authenticate(req).map(|r| ready(r)),
-            NoAuthBehavior::ForceAuthentication => self.force_authentication(req).map(|r| ready(r)),
+            NoAuthBehavior::AuthenticatedOr403 => self.authenticated_or_403(req_info),
+            NoAuthBehavior::AuthenticatedOr404 => self.authenticated_or_404(req_info),
+            NoAuthBehavior::Authenticate => self.authenticate(req_info),
+            NoAuthBehavior::ForceAuthentication => self.force_authentication(req_info),
         };
-        resp.map(|r| r.boxed_local())
+        resp.map(|r| ready(r).boxed_local())
     }
 
     fn do_call(
@@ -220,7 +240,8 @@ where
     ) -> Either<S::Future, LocalBoxFuture<'static, Result<ServiceResponse<B>, Error>>> {
         debug!("*** BEGIN CAS CLIENT MIDDLEWARE ***");
         debug!("*** CAS CLIENT MIDDLEWARE: CURRENT URL : {:?} ***", url_for_request(&req));
-        let resp = self.no_auth_response(&req);
+        let req_info = RequestCasInfo::from_service_request(&req);
+        let resp = self.no_auth_response(&req_info);
         match resp {
             Some(resp) => {
                 debug!("*** CAS CLIENT MIDDLEWARE RESPONSE: INTERCEPT REQUEST ***");
@@ -234,16 +255,16 @@ where
         }
     }
 
-    pub(self) fn set_after_logged_in_url(&self, req: &ServiceRequest) {
-        let session = req.get_session();
-        let after_logged_in_url = url_for_request(req);
-        let result = session.set(AFTER_LOGGED_IN_URL_SESSION_KEY, after_logged_in_url);
-        if let Err(err) = result {
-            error!(
-                "Error while saving after_logged_in_url in session! Error: {}",
-                err
-            );
-        };
+    pub(self) fn set_after_logged_in_url(&self, req_info: &RequestCasInfo) {
+        if let Ok(Some(url)) = &req_info.after_logged_in_url {
+            let result = req_info.session.set(AFTER_LOGGED_IN_URL_SESSION_KEY, url);
+            if let Err(err) = result {
+                error!(
+                    "Error while saving after_logged_in_url in session! Error: {}",
+                    err
+                );
+            };
+        }
     }
 }
 
