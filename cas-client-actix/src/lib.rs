@@ -210,7 +210,6 @@ where
 
     fn handle_needs_authentication(&self, req_info: &RequestCasInfo) -> Option<HttpResponse> {
         let url = req_info.url.clone();
-        self.set_after_logged_in_url(req_info);
         let login_url = match self.server_is_service {
             true => self
                 .cas_client
@@ -269,6 +268,7 @@ where
     ) -> Either<S::Future, LocalBoxFuture<'static, Result<ServiceResponse<B>, Error>>> {
         debug!("*** BEGIN CAS CLIENT MIDDLEWARE ***");
         debug!("*** CAS CLIENT MIDDLEWARE: CURRENT URL : {:?} ***", url_for_request(&req));
+        self.set_after_logged_in_url(&req);
         let req_info = RequestCasInfo::from_service_request(&req);
         let resp = self.no_auth_response(&req_info);
         match resp {
@@ -284,16 +284,18 @@ where
         }
     }
 
-    pub(self) fn set_after_logged_in_url(&self, req_info: &RequestCasInfo) {
-        if let Ok(Some(url)) = &req_info.after_logged_in_url {
-            let result = req_info.session.set(AFTER_LOGGED_IN_URL_SESSION_KEY, url);
+    pub(self) fn set_after_logged_in_url(&self, req: &ServiceRequest) {
+        let session = req.get_session();
+        if let Ok(None) = session.get::<String>(AFTER_LOGGED_IN_URL_SESSION_KEY) {
+            let after_logged_in_url = url_for_request(&req);
+            let result = session.set(AFTER_LOGGED_IN_URL_SESSION_KEY, after_logged_in_url);
             if let Err(err) = result {
                 error!(
                     "Error while saving after_logged_in_url in session! Error: {}",
                     err
                 );
             };
-        }
+        };
     }
 }
 
