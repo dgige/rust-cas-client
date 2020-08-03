@@ -8,6 +8,7 @@ use actix_web::{get, web, App, Error, HttpRequest, HttpResponse, HttpServer};
 use cas_client::actix::ActixCasClient;
 use cas_client::{CasClient, CasUser, NoAuthBehavior};
 use dotenv::dotenv;
+use env_logger::Env;
 use std::env;
 
 #[get("/")]
@@ -44,8 +45,13 @@ async fn user(req: HttpRequest) -> Result<HttpResponse, Error> {
 
 #[actix_rt::main]
 async fn main() -> std::io::Result<()> {
-    env_logger::init();
     dotenv().ok();
+    let logger_environment: Env = Env::default()
+        .filter_or("APP_LOG_LEVEL", "info")
+        .write_style_or("APP_LOG_STYLE", "always");
+    env_logger::init_from_env(logger_environment);
+
+    let server_bind_address = env_or_default("SERVER_BIND_ADDRESS", "127.0.0.1:8080");
 
     HttpServer::new(|| {
         let auth_service = "auth/cas";
@@ -63,14 +69,16 @@ async fn main() -> std::io::Result<()> {
             )
             .configure(|cfg| { cas_client::actix::urls::register(cfg, auth_service, &cas_client) })
         })
-        .bind("localhost:8080")?
+        .bind(server_bind_address)?
         .run()
     .await
 }
 
+fn env_or_default(key: &str, default: &str) -> String {
+    env::var(key).unwrap_or(default.to_string())
+}
+
 fn init_cas_client(auth_service: &str) -> ActixCasClient {
-    let env_or_default =
-        |key: &str, default: &str| env::var(key).unwrap_or(default.to_string());
     let cas_url = env_or_default("CAS_URL", "https://cas.example.com");
     let app_url = env_or_default("APP_URL", "http://localhost:8080");
     let mut cas_client = CasClient::new(&cas_url).unwrap();
