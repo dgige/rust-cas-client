@@ -76,7 +76,9 @@ async fn main() -> std::io::Result<()> {
 
     HttpServer::new(|| {
         let auth_service = "auth/cas";
-        let cas_client_auth = init_cas_client(&auth_service, NoAuthBehavior::Authenticate);
+        let mut cas_client_auth = init_cas_client(&auth_service, NoAuthBehavior::Authenticate);
+        cas_client_auth.set_default_after_logged_in_path(Some("/user".to_string()));
+
         let cas_client_403 = init_cas_client(&auth_service, NoAuthBehavior::AuthenticatedOr403);
         let cas_client_404 = init_cas_client(&auth_service, NoAuthBehavior::AuthenticatedOr404);
         App::new()

@@ -5,8 +5,12 @@ use actix_web::{Error, HttpRequest, HttpResponse};
 
 pub async fn login(cas_client: ActixCasClient) -> Result<HttpResponse, Error> {
     debug!("*** CAS LOGIN: {:?} ***", cas_client);
+    let after_logged_in_path = match cas_client.cas_client.default_after_logged_in_path() {
+        Some(url) => url,
+        _ => cas_client.app_url()
+    };
     Ok(HttpResponse::build(http::StatusCode::TEMPORARY_REDIRECT)
-        .header(http::header::LOCATION, cas_client.app_url())
+        .header(http::header::LOCATION, after_logged_in_path)
         .finish())
 }
 

@@ -18,6 +18,7 @@ pub struct CasClient {
     app_url: String,
     service_validate_prefix: String,
     login_service: String,
+    default_after_logged_in_path: Option<String>,
 }
 
 impl CasClient {
@@ -40,6 +41,7 @@ impl CasClient {
                 app_url: String::new(),
                 service_validate_prefix: String::from("serviceValidate"),
                 login_service: String::from("auth/cas"),
+                default_after_logged_in_path: None,
             }),
             Err(e) => {
                 error!("CAS url is not valid! Error: {}", e);
@@ -59,6 +61,15 @@ impl CasClient {
     // Login service
     pub fn login_service(&self) -> &String {
         &self.login_service
+    }
+
+    pub fn default_after_logged_in_path(&self) -> Option<String> {
+        self.default_after_logged_in_path.clone()
+    }
+
+    pub fn set_default_after_logged_in_path(&mut self, default_after_logged_in_path: Option<String>) -> &mut Self {
+        self.default_after_logged_in_path = default_after_logged_in_path;
+        self
     }
 
     pub fn set_login_service(&mut self, login_service: &str) -> &mut Self {

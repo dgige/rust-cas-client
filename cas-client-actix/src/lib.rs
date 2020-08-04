@@ -94,6 +94,10 @@ impl ActixCasClient {
     pub fn app_url(&self) -> String {
         self.cas_client.app_url().to_string()
     }
+
+    pub fn set_default_after_logged_in_path(&mut self, default_after_logged_in_path: Option<String>) {
+        self.cas_client.set_default_after_logged_in_path(default_after_logged_in_path);
+    }
 }
 
 /// Enable ActixCasClient to be used in Actix "extractors".
