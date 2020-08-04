@@ -33,6 +33,8 @@ pub struct ActixCasClient {
     // Indicates that the server's URL should be
     // used as the CAS `service_url`.
     server_is_service: bool,
+    url_to_403: Option<String>,
+    url_to_404: Option<String>,
 }
 
 fn ticket_for_query_string(
@@ -67,10 +69,12 @@ impl RequestCasInfo {
 }
 
 impl ActixCasClient {
-    pub fn new(cas_client: CasClient) -> Self {
+    pub fn new(cas_client: CasClient, url_to_403: Option<String>, url_to_404: Option<String>) -> Self {
         ActixCasClient {
             cas_client,
             server_is_service: false,
+            url_to_403,
+            url_to_404,
         }
     }
 
@@ -137,6 +141,8 @@ where
             service,
             cas_client: self.cas_client.clone(),
             server_is_service: self.server_is_service,
+            url_to_403: self.url_to_403.clone(),
+            url_to_404: self.url_to_404.clone(),
         })
     }
 }
@@ -144,6 +150,8 @@ pub struct ActixCasClientMiddleware<S> {
     service: S,
     cas_client: CasClient,
     server_is_service: bool,
+    url_to_403: Option<String>,
+    url_to_404: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -176,11 +184,11 @@ where
     }
 
     fn authenticated_or_403(&self, req_info: &RequestCasInfo) -> Option<HttpResponse> {
-        self.authenticated_or_error(req_info, http::StatusCode::FORBIDDEN)
+        self.authenticated_or_error(req_info, http::StatusCode::FORBIDDEN, self.url_to_403.clone())
     }
 
     fn authenticated_or_404(&self, req_info: &RequestCasInfo) -> Option<HttpResponse> {
-        self.authenticated_or_error(req_info, http::StatusCode::NOT_FOUND)
+        self.authenticated_or_error(req_info, http::StatusCode::NOT_FOUND, self.url_to_404.clone())
     }
 
     fn force_authentication(&self, req_info: &RequestCasInfo) -> Option<HttpResponse> {
@@ -201,9 +209,15 @@ where
         }
     }
 
-    pub(self) fn authenticated_or_error(&self, req_info: &RequestCasInfo, status_code: http::StatusCode) -> Option<HttpResponse> {
+    pub(self) fn authenticated_or_error(&self, req_info: &RequestCasInfo, status_code: http::StatusCode, error_path: Option<String>) -> Option<HttpResponse> {
         if let Ok(None) = &req_info.cas_user {
-            return Some(HttpResponse::build(status_code).finish())
+            let resp = match error_path {
+                Some(url) => Some(HttpResponse::build(http::StatusCode::TEMPORARY_REDIRECT)
+                    .header(http::header::LOCATION, url)
+                    .finish()),
+                _ => Some(HttpResponse::build(status_code).finish())
+            };
+            return resp
         }
         None
     }
@@ -352,7 +366,7 @@ mod cas_client_actix_test {
         let mut cas_client = CasClient::new(&cas_url).unwrap();
         cas_client.set_no_auth_behavior(behavior);
         cas_client.set_login_service(auth_service);
-        let mut a = ActixCasClient::new(cas_client);
+        let mut a = ActixCasClient::new(cas_client, None, None);
         a.set_server_is_service(true);
         a
     }

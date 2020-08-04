@@ -4,13 +4,14 @@ use actix_web::http;
 use actix_web::{Error, HttpRequest, HttpResponse};
 
 pub async fn login(cas_client: ActixCasClient) -> Result<HttpResponse, Error> {
-    debug!("{:?}", cas_client);
+    debug!("*** CAS LOGIN: {:?} ***", cas_client);
     Ok(HttpResponse::build(http::StatusCode::TEMPORARY_REDIRECT)
         .header(http::header::LOCATION, cas_client.app_url())
         .finish())
 }
 
 pub async fn logout(req: HttpRequest, cas_client: ActixCasClient) -> Result<HttpResponse, Error> {
+    debug!("*** CAS LOGOUT: {:?} ***", cas_client);
     let session = req.get_session();
     session.purge();
     let logout_url = cas_client.logout_url();
@@ -18,7 +19,16 @@ pub async fn logout(req: HttpRequest, cas_client: ActixCasClient) -> Result<Http
         Some(logout_url) => Ok(HttpResponse::build(http::StatusCode::TEMPORARY_REDIRECT)
             .header(http::header::LOCATION, logout_url)
             .finish()),
-        _ => Ok(HttpResponse::build(http::StatusCode::NOT_FOUND).finish()),
+        _ => logout_404_error(cas_client),
+    }
+}
+
+fn logout_404_error(cas_client: ActixCasClient) -> Result<HttpResponse, Error> {
+    match cas_client.url_to_404 {
+        Some(url_to_404) =>Ok(HttpResponse::build(http::StatusCode::TEMPORARY_REDIRECT)
+            .header(http::header::LOCATION, url_to_404)
+            .finish()),
+        _ => Ok(HttpResponse::build(http::StatusCode::NOT_FOUND).finish())
     }
 }
 
