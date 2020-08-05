@@ -288,7 +288,7 @@ dependencies = [
  "actix-service 1.0.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "actix-session 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "actix-web 2.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "cas-client 0.2.0",
+ "cas-client 0.3.0",
  "dotenv 0.15.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "env_logger 0.7.1 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
@@ -445,7 +445,7 @@ dependencies = [
 
 [[package]]
 name = "cas-client"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "actix-files 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "actix-rt 1.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
