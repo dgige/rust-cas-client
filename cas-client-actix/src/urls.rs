@@ -41,10 +41,12 @@ pub fn register(cfg: &mut actix_web::web::ServiceConfig, auth_service: &str, cas
 
     cfg.service(
         web::resource(&format!("{}/logout", auth_service))
+            .name("cas_logout")
             .route(web::get().to(crate::urls::logout))
     );
     cfg.service(
         web::resource(&format!("{}/login", auth_service))
+            .name("cas_login")
             .wrap(cas_client.clone())
             .route(web::get().to(crate::urls::login))
     );
