@@ -1,6 +1,6 @@
 [package]
 name = "cas-client"
-version = "0.3.1"
+version = "0.4.0"
 authors = ["JMarignale <julien.marignale@gmail.com>"]
 edition = "2018"
 
@@ -29,12 +29,14 @@ cas-client-actix = { path = "./cas-client-actix", optional = true }
 
 [dev-dependencies]
 actix-rt = "1.1.1"
-actix-web = "2.0.0"
-actix-files = "0.2.2"
-actix-service = "1.0.5"
-actix-session = "0.3.0"
+actix-web = "3.0.0"
+actix-files = "0.3.0"
+actix-service = "1.0.6"
+actix-session = "0.4.0"
+actix-connect = "2.0.0"
 dotenv = "0.15.0"
 env_logger = "0.7.1"
+trust-dns-resolver = "0.19.5"
 
 [[example]]
 name = "actix-web-example"
