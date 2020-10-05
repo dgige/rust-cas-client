@@ -9,6 +9,7 @@ use cas_client::actix::ActixCasClient;
 use cas_client::{CasClient, CasUser, NoAuthBehavior};
 use dotenv::dotenv;
 use env_logger::Env;
+use std::collections::HashMap;
 use std::env;
 
 #[get("/")]
@@ -50,17 +51,23 @@ async fn user(req: HttpRequest) -> Result<HttpResponse, Error> {
     let user_session = session.get::<CasUser>("cas_user");
     let user = user_session.unwrap_or(None);
     let username = match user {
-        Some(user) => user.username().to_owned(),
+        Some(ref user) => user.username().to_owned(),
         None => "guest".to_owned(),
+    };
+    let attributes = match user {
+        Some(ref user) => user.attributes().to_owned(),
+        None => HashMap::new(),
     };
     Ok(HttpResponse::build(StatusCode::OK)
         .content_type("text/html; charset=utf-8")
         .body(format!(
             "Welcome <b>{}</b>!
             <br>
+            Your attributes: {:?}
+            <br>
             <br>
             <a href='/auth/cas/logout'>Logout</a>",
-            username,
+            username,attributes,
         )))
 }
 

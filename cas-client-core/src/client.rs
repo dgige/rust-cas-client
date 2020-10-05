@@ -3,9 +3,10 @@ extern crate roxmltree;
 extern crate url;
 
 use crate::CasUser;
-
 use curl::easy::Easy;
 use std::collections::HashMap;
+use std::collections::hash_map::Entry::Vacant;
+use std::collections::hash_map::Entry::Occupied;
 use url::Url;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -320,9 +321,10 @@ impl CasClient {
                         attr => {
                             if let Some(child) = node.first_child() {
                                 if let Some(text) = child.text() {
-                                    attributes
-                                        .entry(attr.to_string())
-                                        .or_insert_with(|| text.to_string());
+                                    match attributes.entry(attr.to_string()) {
+                                        Occupied(mut entry) => *entry.get_mut() = format!("{},{}", entry.get(), text),
+                                        Vacant(entry) => { entry.insert(text.to_string()); },
+                                    };
                                 }
                             }
                         }
@@ -330,6 +332,10 @@ impl CasClient {
                 }
             }
         };
+
+
+println!("ATTR ===> {:?}", attributes);
+
         (user, attributes)
     }
 
