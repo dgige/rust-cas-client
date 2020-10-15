@@ -1,6 +1,6 @@
 [package]
 name = "actix-web-example"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["jmarignale"]
 edition = "2018"
 
@@ -8,7 +8,7 @@ edition = "2018"
 cas-client = { path = "../..", features = ["actix-framework"] }
 
 actix-web = "3.1.0"
-actix-files = "0.3.0"
+actix-files = "0.4.0"
 actix-service = "1.0.6"
 actix-session = "0.4.0"
 dotenv = "0.15.0"

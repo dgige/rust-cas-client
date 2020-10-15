@@ -456,10 +456,16 @@ mod cas_client_actix_test {
                 // ticket, they're redirected to the CAS service.
                 // If there is a ticket, we validate the ticket
                 // and then redirect them to their "after logged in" URL.
-                .route(LOGIN_PATH, web::get().to(urls::login))
+                .service(
+                    web::scope(LOGIN_PATH)
+                        .service(urls::cas_login)
+                )
                 // Authentication information in the session is
                 // cleared after visiting this route.
-                .route(LOGOUT_PATH, web::get().to(urls::logout))
+                .service(
+                    web::scope(LOGOUT_PATH)
+                        .service(urls::cas_logout)
+                )
         });
         srv
     }
@@ -519,14 +525,20 @@ mod cas_client_actix_test {
     async fn test_unconfigured_returns_error() {
         let srv = start(|| {
             App::new()
-                .route(LOGIN_PATH, web::get().to(urls::login))
-                .route(LOGOUT_PATH, web::get().to(urls::logout))
+                .service(
+                    web::scope(LOGIN_PATH)
+                        .service(urls::cas_login)
+                )
+                .service(
+                    web::scope(LOGOUT_PATH)
+                        .service(urls::cas_logout)
+                )
         });
-        let req = srv.get(LOGIN_PATH).send();
+        let req = srv.get(format!("{}/", LOGIN_PATH)).send();
         let resp = req.await.unwrap();
         println!("{:?}", resp);
         assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
-        let req = srv.get(LOGOUT_PATH).send();
+        let req = srv.get(format!("{}/", LOGOUT_PATH)).send();
         let resp = req.await.unwrap();
         println!("{:?}", resp);
         assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
@@ -543,8 +555,14 @@ mod cas_client_actix_test {
             App::new()
                 .wrap(cookie_store)
                 .app_data(cas_with_auth.clone())
-                .route(LOGIN_PATH, web::get().to(urls::login))
-                .route(LOGOUT_PATH, web::get().to(urls::logout))
+                .service(
+                    web::scope(LOGIN_PATH)
+                        .service(urls::cas_login)
+                )
+                .service(
+                    web::scope(LOGOUT_PATH)
+                        .service(urls::cas_logout)
+                )
         } );
         let req = srv.get(LOGIN_PATH).send();
         let resp = req.await.unwrap();

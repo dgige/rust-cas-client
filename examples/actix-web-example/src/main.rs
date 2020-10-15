@@ -1,10 +1,11 @@
 extern crate cas_client;
 extern crate dotenv;
 
+use actix_web::Responder;
 use actix_session::{CookieSession, UserSession};
 use actix_web::http::StatusCode;
 use actix_web::middleware::Logger;
-use actix_web::{get, web, App, Error, HttpRequest, HttpResponse, HttpServer};
+use actix_web::{get, middleware, web, App, HttpRequest, HttpResponse, HttpServer};
 use cas_client::actix::ActixCasClient;
 use cas_client::{CasClient, CasUser, NoAuthBehavior};
 use dotenv::dotenv;
@@ -13,8 +14,8 @@ use std::collections::HashMap;
 use std::env;
 
 #[get("/")]
-async fn guest(_req: HttpRequest) -> Result<HttpResponse, Error> {
-    Ok(HttpResponse::build(StatusCode::OK)
+async fn guest(_req: HttpRequest) -> impl Responder {
+    HttpResponse::build(StatusCode::OK)
         .content_type("text/html; charset=utf-8")
         .body("
             Welcome <b>Guest</b>!
@@ -29,24 +30,25 @@ async fn guest(_req: HttpRequest) -> Result<HttpResponse, Error> {
             <br>
             <br><a href='/user_or_404'>Login (to '/user_or_404')</a>
             <br><a href='/user_or_404/welcome'>Login (to '/user_or_404/welcome')</a>
-        "))
+        ")
 }
 
-#[get("/404")]
-async fn not_found(_req: HttpRequest) -> Result<HttpResponse, Error> {
-    Ok(HttpResponse::build(StatusCode::NOT_FOUND)
+#[get("/404/")]
+async fn not_found(_req: HttpRequest) -> impl Responder {
+    HttpResponse::build(StatusCode::NOT_FOUND)
         .content_type("text/html; charset=utf-8")
-        .body("PAGE NOT FOUND"))
+        .body("PAGE NOT FOUND")
 }
 
-#[get("/403")]
-async fn unauthorized(_req: HttpRequest) -> Result<HttpResponse, Error> {
-    Ok(HttpResponse::build(StatusCode::UNAUTHORIZED)
+#[get("/403/")]
+async fn unauthorized(_req: HttpRequest) -> impl Responder {
+    HttpResponse::build(StatusCode::UNAUTHORIZED)
         .content_type("text/html; charset=utf-8")
-        .body("PAGE UNAUTHORIZED"))
+        .body("PAGE UNAUTHORIZED")
 }
 
-async fn user(req: HttpRequest) -> Result<HttpResponse, Error> {
+#[get("/")]
+async fn user(req: HttpRequest) -> impl Responder {
     let session = req.get_session();
     let user_session = session.get::<CasUser>("cas_user");
     let user = user_session.unwrap_or(None);
@@ -58,7 +60,8 @@ async fn user(req: HttpRequest) -> Result<HttpResponse, Error> {
         Some(ref user) => user.attributes().to_owned(),
         None => HashMap::new(),
     };
-    Ok(HttpResponse::build(StatusCode::OK)
+    println!("=====> {:?}", req.match_name());
+    HttpResponse::build(StatusCode::OK)
         .content_type("text/html; charset=utf-8")
         .body(format!(
             "Welcome <b>{}</b>!
@@ -68,7 +71,8 @@ async fn user(req: HttpRequest) -> Result<HttpResponse, Error> {
             <br>
             <a href='/auth/cas/logout'>Logout</a>",
             username,attributes,
-        )))
+        )
+    )
 }
 
 #[actix_rt::main]
@@ -82,7 +86,7 @@ async fn main() -> std::io::Result<()> {
     let server_bind_address = env_or_default("SERVER_BIND_ADDRESS", "127.0.0.1:8080");
 
     HttpServer::new(|| {
-        let auth_service = "auth/cas";
+        let auth_service = "/auth/cas";
         let mut cas_client_auth = init_cas_client(&auth_service, NoAuthBehavior::Authenticate);
         cas_client_auth.set_default_after_logged_in_path(Some("/user".to_string()));
 
@@ -90,31 +94,39 @@ async fn main() -> std::io::Result<()> {
         let cas_client_404 = init_cas_client(&auth_service, NoAuthBehavior::AuthenticatedOr404);
         App::new()
             .wrap(Logger::default())
-            .wrap(CookieSession::signed(&[0; 32]).secure(false))
+            .wrap(middleware::NormalizePath::default())
+            .wrap(CookieSession::signed(&[0; 32]).secure(false).name("actix-web-example"))
             .app_data(cas_client_auth.clone())
             .service(guest)
             .service(
+                web::scope("/user/welcome")
+                    .wrap(cas_client_auth.clone())
+                    .service(user)
+            )
+            .service(
                 web::scope("/user")
                     .wrap(cas_client_auth.clone())
-                    .route("", web::get().to(user))
-                    .route("/welcome", web::get().to(user))
+                    .service(user)
+            )
+            .service(
+                web::scope("/user_or_403/welcome")
+                    .wrap(cas_client_403.clone())
+                    .service(user)
             )
             .service(
                 web::scope("/user_or_403")
                     .wrap(cas_client_403.clone())
-                    .route("", web::get().to(user))
-                    .route("/welcome", web::get().to(user))
+                    .service(user)
+            )
+            .service(
+                web::scope("/user_or_404/welcome")
+                    .wrap(cas_client_404.clone())
+                    .service(user)
             )
             .service(
                 web::scope("/user_or_404")
                     .wrap(cas_client_404.clone())
-                    .route("", web::get().to(user))
-                    .route("/welcome", web::get().to(user))
-            )
-            .service(
-                web::scope("/protected_or_error")
-                    .service(not_found)
-                    .service(unauthorized)
+                    .service(user)
             )
             .configure(|cfg| { cas_client::actix::urls::register(cfg, auth_service, &cas_client_auth) })
         })
